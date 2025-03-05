@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import uvicorn
 from routes.mcq_routes import router as mcq_router
+from routes.auth_routes import router as auth_router
+from routes.onboarding_routes import router as onboarding_router
 
 # Load environment variables from .env file
 load_dotenv()
@@ -31,6 +33,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(mcq_router)
+app.include_router(auth_router)
+app.include_router(onboarding_router)
 
 # Health check endpoint
 @app.get("/health")
@@ -52,7 +56,11 @@ async def root():
             "/api/quiz/generate",
             "/api/quiz/submit",
             "/api/quiz/sample/{skill_area}",
-            "/api/quiz/debug"
+            "/api/quiz/debug",
+            "/api/auth/register",
+            "/api/auth/login",
+            "/api/onboarding/save",
+            "api/onboarding/status",
         ]
     }
 

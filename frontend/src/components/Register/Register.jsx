@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import { useMutation } from '@tanstack/react-query'; 
 import { IoLockClosed } from 'react-icons/io5';
 import IconsCarousel from '../IconsCarousel';
 
@@ -12,6 +13,8 @@ import ProgressSteps from './ProgressSteps';
 
 const Register = () => {
   const [step, setStep] = useState(1);
+  const [registrationError, setRegistrationError] = useState('');
+  const navigate = useNavigate();
   
   // React Hook Form setup for step 1
   const { 
@@ -43,6 +46,47 @@ const Register = () => {
     }
   });
   
+  // API registration function
+  const registerUser = async (userData) => {
+    const response = await fetch('http://localhost:8000/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Registration failed');
+    }
+    
+    return response.json();
+  };
+
+  // Registration mutation
+  const registerMutation = useMutation({
+    mutationFn: registerUser,
+    onSuccess: async (data) => {
+      // Set the user as logged in
+      localStorage.setItem('isLoggedIn', 'true');
+
+      // Store the JWT token
+      localStorage.setItem('token', data.token);
+      
+      // Initialize empty onboarding data
+      localStorage.setItem('onboardingData', JSON.stringify({}));
+      
+      // Instead of showing success step, redirect to onboarding
+      navigate('/onboarding');
+      
+      // Clean up stored registration data
+      localStorage.removeItem('registerStep1');
+    },
+    onError: (error) => {
+      setRegistrationError(error.message);
+      console.error('Registration error:', error);
+    }
+  });
+  
   // Handle step 1 submission
   const onSubmitStep1 = (data) => {
     localStorage.setItem('registerStep1', JSON.stringify(data));
@@ -53,24 +97,18 @@ const Register = () => {
   const onSubmitStep2 = (data) => {
     const step1Data = JSON.parse(localStorage.getItem('registerStep1'));
     
+    // Create registration data based on the schema
     const userData = {
-      // Users table data
       email: step1Data.email,
       password: step1Data.password,
-      registration_date: new Date().toISOString(),
-      status: 'active',
-      
-      // UserProfiles table data
-      profile: {
-        first_name: data.firstName,
-        last_name: data.lastName,
-        location: data.location,
-        role: data.role
-      }
+      first_name: data.firstName,
+      last_name: data.lastName,
+      location: data.location,
+      role: data.role
     };
     
-    console.log('Registration data:', userData);
-    setStep(3);
+    // Send registration data to API
+    registerMutation.mutate(userData);
   };
 
   // Animation variants
@@ -106,6 +144,13 @@ const Register = () => {
           {/* Progress steps */}
           <ProgressSteps currentStep={step} />
 
+          {/* Registration error message */}
+          {registrationError && (
+            <div className="bg-red-900/30 border border-red-800 text-red-300 px-3 py-2 rounded-md text-sm mb-4">
+              {registrationError}
+            </div>
+          )}
+
           {/* Form steps */}
           {step === 1 && (
             <FormStep1 
@@ -126,11 +171,8 @@ const Register = () => {
               onSubmitStep2={onSubmitStep2}
               setStep={setStep}
               pageVariants={pageVariants}
+              isLoading={registerMutation.isPending}
             />
-          )}
-
-          {step === 3 && (
-            <SuccessStep pageVariants={pageVariants} />
           )}
 
           {/* Login link */}

@@ -9,7 +9,9 @@ const Navbar = () => {
   const [hoveredItem, setHoveredItem] = useState(null);
   const navRefs = useRef({});
   const navigate = useNavigate();
-  
+  // Check if user is logged in
+  const isLoggedIn = localStorage.getItem('isLoggedIn');
+
   // Navigation items with scroll functionality for Features
   const navItems = [
     { name: "Home", to: "/" },
@@ -22,10 +24,8 @@ const Navbar = () => {
   const handleNavigation = (item, e) => {
     if (item.isScroll) {
       e.preventDefault();
-      // If not on homepage, navigate there first
       if (window.location.pathname !== '/') {
         navigate('/');
-        // Add a small delay to ensure navigation completes before scrolling
         setTimeout(() => {
           const element = document.getElementById(item.name.toLowerCase());
           if (element) {
@@ -33,7 +33,6 @@ const Navbar = () => {
           }
         }, 100);
       } else {
-        // Already on homepage, just scroll
         const element = document.getElementById(item.name.toLowerCase());
         if (element) {
           element.scrollIntoView({ behavior: 'smooth' });
@@ -52,7 +51,6 @@ const Navbar = () => {
         transform: isVisible ? "none" : "translateY(-100%)",
       }}
     >
-      {/* Glass background effect */}
       <div className="backdrop-blur-md bg-black/80 shadow-lg">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16 md:h-20">
@@ -108,20 +106,32 @@ const Navbar = () => {
                   </AnimatePresence>
                 </motion.div>
               ))}
-              
-              <RouterLink
-              to = "/login"
-              >
-              <motion.button
-                className="bg-primary text-white px-6 py-1.5 rounded-lg text-lg font-medium ml-4 border-2 cursor-pointer"
-                whileHover={{ color: "#000", backgroundColor: "#fff" }}
-                whileTap={{ scale: 0.95 }}
-                transition={{ duration: 0.1 }}
-                variants={childVariants}
-              >
-                Login
-              </motion.button>
-              </RouterLink>
+
+              { isLoggedIn ? (
+                <RouterLink to="/signout">
+                  <motion.button
+                    className="bg-primary text-white px-6 py-1.5 rounded-lg text-lg font-medium ml-4 border-2 cursor-pointer"
+                    whileHover={{ color: "#000", backgroundColor: "#fff" }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ duration: 0.1 }}
+                    variants={childVariants}
+                  >
+                    Sign Out
+                  </motion.button>
+                </RouterLink>
+              ) : (
+                <RouterLink to="/login">
+                  <motion.button
+                    className="bg-primary text-white px-6 py-1.5 rounded-lg text-lg font-medium ml-4 border-2 cursor-pointer"
+                    whileHover={{ color: "#000", backgroundColor: "#fff" }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ duration: 0.1 }}
+                    variants={childVariants}
+                  >
+                    Login
+                  </motion.button>
+                </RouterLink>
+              )}
             </div>
           </div>
         </div>

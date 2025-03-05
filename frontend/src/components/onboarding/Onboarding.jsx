@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
+import { useMutation } from '@tanstack/react-query';
 
 // Import icons
 import { IoRocketOutline, IoSchoolOutline, IoPersonOutline, IoCheckmarkDoneOutline } from 'react-icons/io5';
@@ -23,12 +24,6 @@ const Onboarding = () => {
     const isLoggedIn = localStorage.getItem('isLoggedIn');
     if (!isLoggedIn) {
       navigate('/login');
-    }
-    
-    // Try to load any saved onboarding data
-    const savedData = localStorage.getItem('onboardingData');
-    if (savedData) {
-      setUserData(JSON.parse(savedData));
     }
   }, [navigate]);
 
@@ -60,37 +55,62 @@ const Onboarding = () => {
     }
   });
 
+  // Function to save onboarding data to API
+  const saveOnboardingData = async (data) => {
+    const token = localStorage.getItem('token'); // Assuming you store the JWT token
+    
+    const response = await fetch('http://localhost:8000/api/onboarding/save', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(data)
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to save onboarding data');
+    }
+    
+    return response.json();
+  };
+
+  // Mutation for saving onboarding data
+  const onboardingMutation = useMutation({
+    mutationFn: saveOnboardingData,
+    onSuccess: () => {
+      // Mark onboarding as complete in localStorage
+      localStorage.setItem('onboardingComplete', 'true');
+      
+      // Redirect to dashboard
+      navigate('/dashboard');
+    },
+    onError: (error) => {
+      console.error('Error saving onboarding data:', error);
+    }
+  });
+
   // Handle step submissions
   const handleGoalSubmit = (data) => {
-    const updatedData = { ...userData, ...data };
-    setUserData(updatedData);
-    localStorage.setItem('onboardingData', JSON.stringify(updatedData));
+    setUserData(prev => ({ ...prev, ...data }));
     setStep(2);
   };
 
   const handleLearningStyleSubmit = (data) => {
-    const updatedData = { ...userData, ...data };
-    setUserData(updatedData);
-    localStorage.setItem('onboardingData', JSON.stringify(updatedData));
+    setUserData(prev => ({ ...prev, ...data }));
     setStep(3);
   };
 
   const handleCareerPathSubmit = (data) => {
-    const updatedData = { ...userData, ...data };
-    setUserData(updatedData);
-    localStorage.setItem('onboardingData', JSON.stringify(updatedData));
-    setStep(4);
-  };
-
-  const handleCompleteOnboarding = () => {
-    // Here you would typically save all the data to your backend
-    console.log('Complete onboarding data:', userData);
+    const finalData = { ...userData, ...data };
+    setUserData(finalData);
     
-    // Mark onboarding as complete
-    localStorage.setItem('onboardingComplete', 'true');
+    // Save to localStorage in case API call fails
+    localStorage.setItem('onboardingData', JSON.stringify(finalData));
     
-    // Navigate to dashboard
-    navigate('/dashboard');
+    // Submit all data to API
+    onboardingMutation.mutate(finalData);
   };
 
   // Get the correct step icon
@@ -223,6 +243,7 @@ const Onboarding = () => {
               onSubmit={handleCareerPathSubmit}
               onBack={() => setStep(2)}
               pageVariants={pageVariants}
+              isLoading={onboardingMutation.isPending}
             />
           )}
           

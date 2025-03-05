@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { containerVariants, itemVariants, listItemVariants } from "../animations/homeAnimations";
+import { Link as RouterLink } from "react-router-dom";
 
 const HeroContent = () => {
   return (
@@ -64,7 +65,8 @@ const HeroContent = () => {
             </motion.li>
           </motion.ul>
 
-          <motion.div className="pt-4" variants={itemVariants}>
+         <motion.div className="pt-4" variants={itemVariants}>
+         <RouterLink to="/register">
             <motion.button
               className="bg-primary hover:bg-primary-dark text-white font-bold py-3 px-8 rounded-lg cursor-pointer border-2"
               whileHover={{ color: "#000", backgroundColor: "#fff" }}
@@ -73,6 +75,7 @@ const HeroContent = () => {
             >
               Start Your Journey
             </motion.button>
+            </RouterLink>
           </motion.div>
         </motion.div>
       </div>
