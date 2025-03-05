@@ -1,0 +1,23 @@
+# Core dependencies
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.4.2
+python-dotenv>=1.0.0
+
+# LangChain and LLM integration
+langchain>=0.0.267
+langchain-core>=0.1.0
+langchain-groq>=0.1.0
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# API clients
+httpx>=0.25.0
+requests>=2.31.0
+
+# Utilities
+python-multipart>=0.0.5
+uuid>=1.30
+typing-extensions>=4.8.0
