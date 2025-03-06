@@ -1,10 +1,12 @@
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { IoCheckmarkCircleOutline, IoRocketOutline } from 'react-icons/io5';
 
 const OnboardingComplete = ({ userData, onComplete, pageVariants }) => {
   const [loading, setLoading] = useState(false);
   const [recommendations, setRecommendations] = useState(null);
+  const navigate = useNavigate();
 
   // Career path display names
   const careerPathNames = {
@@ -163,6 +165,18 @@ const OnboardingComplete = ({ userData, onComplete, pageVariants }) => {
     })
   };
 
+  // Function to handle the start learning button click
+  const handleStartLearning = () => {
+    // Save the onboarding data to localStorage for the assessment to use
+    localStorage.setItem('onboardingData', JSON.stringify(userData));
+    
+    // Mark the onboarding as complete
+    localStorage.setItem('onboardingComplete', 'true');
+    
+    // Navigate to the skill assessment page
+    navigate('/assessment');
+  };
+
   return (
     <motion.div
       variants={pageVariants}
@@ -251,11 +265,11 @@ const OnboardingComplete = ({ userData, onComplete, pageVariants }) => {
       <div className="pt-4">
         <button
           type="button"
-          onClick={onComplete}
+          onClick={handleStartLearning}
           disabled={loading}
           className="w-full py-3 px-5 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white rounded-lg transition-colors flex items-center justify-center"
         >
-          <span>Start Your Learning Journey</span>
+          <span>Continue to Skill Assessment</span>
           <IoRocketOutline className="ml-2" />
         </button>
       </div>

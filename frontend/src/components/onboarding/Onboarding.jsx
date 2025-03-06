@@ -84,7 +84,7 @@ const Onboarding = () => {
       localStorage.setItem('onboardingComplete', 'true');
       
       // Redirect to dashboard
-      navigate('/dashboard');
+      navigate('/assessment');
     },
     onError: (error) => {
       console.error('Error saving onboarding data:', error);

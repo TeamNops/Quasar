@@ -9,6 +9,7 @@ import Login from "./components/Login";
 import Onboarding from "./components/onboarding/Onboarding";
 import Signout from "./components/Signout";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import SkillAssessment from "./components/SkillAssessment";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/signout" element={<Signout />} />
             <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/assessment" element={<SkillAssessment />} />
           </Routes>
         </BrowserRouter>
       </BackgroundProvider>
