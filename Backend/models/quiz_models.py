@@ -1,6 +1,14 @@
 from pydantic import BaseModel, Field
 from typing import List
 
+class UserParameters(BaseModel):
+    """User parameters for generating a quiz"""
+    primary_goal: str
+    selected_skills: List[str]
+    time_commitment: str
+    career_path: str
+    experience_level: str = "intermediate"
+    num_questions: int = 10
 
 class MCQQuestion(BaseModel):
     question: str = Field(description="The question text")

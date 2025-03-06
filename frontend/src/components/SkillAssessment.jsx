@@ -85,40 +85,57 @@ const SkillAssesment = () => {
     questions: []
   });
 
-  // Submit quiz answers
-  const submitQuiz = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('http://localhost:8000/api/quiz/submit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          quiz_id: quizId,
-          user_answers: selectedAnswers
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to submit assessment answers');
-      }
-      
-      const results = await response.json();
-      setAssessmentResults(results);
-      setAssessmentComplete(true);
-      
-      // Mark assessment as complete
-      localStorage.setItem('skillAssessmentComplete', 'true');
-      localStorage.setItem('skillAssessmentResults', JSON.stringify(results));
-      
-      setIsLoading(false);
-    } catch (err) {
-      setError(err.message);
-      setIsLoading(false);
+// Submit quiz answers
+const submitQuiz = async () => {
+  setIsLoading(true);
+  try {
+    // Submit the quiz answers
+    const response = await fetch('http://localhost:8000/api/quiz/submit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({
+        quiz_id: quizId,
+        user_answers: selectedAnswers
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to submit assessment answers');
     }
-  };
+    
+    const results = await response.json();
+    
+    // Update the user's assessment status in the database
+    const statusResponse = await fetch('http://localhost:8000/api/auth/update-assessment-status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({ assessment_complete: true })
+    });
+    
+    if (!statusResponse.ok) {
+      console.error('Failed to update assessment status on server');
+    }
+    
+    // Update local state
+    setAssessmentResults(results);
+    setAssessmentComplete(true);
+    
+    // Mark assessment as complete
+    localStorage.setItem('skillAssessmentComplete', 'true');
+    localStorage.setItem('skillAssessmentResults', JSON.stringify(results));
+    
+    setIsLoading(false);
+  } catch (err) {
+    setError(err.message);
+    setIsLoading(false);
+  }
+};
 
   // Handle answer selection
   const handleAnswerSelect = (answerIndex) => {
@@ -145,7 +162,7 @@ const SkillAssesment = () => {
 
   // Handle completion and navigate to dashboard
   const handleComplete = () => {
-    navigate('/dashboard');
+    navigate('/recommendations');
   };
 
   // Animation variants
@@ -316,7 +333,7 @@ const SkillAssesment = () => {
                 className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
                 onClick={handleComplete}
               >
-                Continue to Dashboard
+                View Learning Recommendations
               </button>
             </div>
           </div>

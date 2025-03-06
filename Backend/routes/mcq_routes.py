@@ -1,11 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status, Header
 from fastapi.responses import JSONResponse
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
-import os
 from dotenv import load_dotenv
+from bson import ObjectId
+from datetime import datetime
+import jwt
+import os
 
 from functions.mcq_functions import create_quiz_generator, generate_quiz, score_quiz
+from database import get_db
+from jwt_config import settings
 
 # Ensure environment variables are loaded
 load_dotenv()
@@ -16,9 +21,12 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
-# Cache for storing generated quizzes (in a production app, use a proper cache like Redis)
 quiz_cache = {}
 
+# Define a class for quiz submission
+class QuizSubmission(BaseModel):
+    quiz_id: str
+    user_answers: List[int]
 
 class UserParameters(BaseModel):
     """User parameters for generating a quiz"""
@@ -28,20 +36,6 @@ class UserParameters(BaseModel):
     career_path: str
     experience_level: str = "intermediate"
     num_questions: int = 10
-
-
-class QuizSubmission(BaseModel):
-    """User's quiz submission with answers"""
-    quiz_id: str
-    user_answers: List[int]
-
-
-class SkillGapResponse(BaseModel):
-    """Response model for skill gap analysis"""
-    overall_level: str
-    skill_gaps: Dict[str, Any]
-    recommendations: List[Dict[str, Any]]
-
 
 def get_quiz_generator():
     """Dependency to get the quiz generator"""
@@ -53,70 +47,46 @@ def get_quiz_generator():
         )
     return create_quiz_generator(api_key)
 
-
-@router.post("/generate", response_model=Dict[str, Any])
-async def generate_assessment(
-        params: UserParameters,
-        background_tasks: BackgroundTasks,
-        quiz_gen=Depends(get_quiz_generator)
-):
-    """
-    Generate a personalized skill assessment quiz based on user parameters
-    """
-    try:
-        # Generate a unique ID for this quiz
-        import uuid
-        quiz_id = str(uuid.uuid4())
-
-        # Start quiz generation
-        quiz_content = generate_quiz(
-            model=quiz_gen,
-            primary_goal=params.primary_goal,
-            selected_skills=params.selected_skills,
-            time_commitment=params.time_commitment,
-            career_path=params.career_path,
-            experience_level=params.experience_level,
-            num_questions=params.num_questions
-        )
-
-        # Store the quiz with correct answers in cache
-        quiz_cache[quiz_id] = quiz_content
-
-        # Create a user-facing version without correct answers
-        user_quiz = {
-            "quiz_id": quiz_id,
-            "questions": [
-                {
-                    "question": q["question"],
-                    "options": q["options"],
-                    "difficulty": q.get("difficulty", "intermediate")
-                }
-                for q in quiz_content["questions"]
-            ]
-        }
-
-        return user_quiz
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate quiz: {str(e)}"
-        )
-
-
 @router.post("/submit", response_model=Dict[str, Any])
-async def submit_quiz(submission: QuizSubmission):
+async def submit_quiz(submission: QuizSubmission, authorization: str = Header(None)):
     """
     Submit answers for a generated quiz and get results with skill gap analysis
     """
-    # Retrieve the quiz from cache
-    if submission.quiz_id not in quiz_cache:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Quiz not found. It may have expired."
-        )
+    # Check authorization
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(" ")[1]
+    
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid authentication token")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token format")
 
-    quiz_content = quiz_cache[submission.quiz_id]
+    # Get database connection
+    db = get_db()
+
+    global quiz_cache
+    
+    # Retrieve the quiz from cache or database
+    quiz_content = None
+    
+    if submission.quiz_id in quiz_cache:
+        quiz_content = quiz_cache[submission.quiz_id]
+    else:
+        # Try to get from database
+        stored_quiz = db.quizzes.find_one({"quiz_id": submission.quiz_id})
+        if stored_quiz:
+            quiz_content = stored_quiz
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Quiz not found. It may have expired."
+            )
 
     # Validate submission
     if len(submission.user_answers) != len(quiz_content["questions"]):
@@ -162,72 +132,91 @@ async def submit_quiz(submission: QuizSubmission):
         "skill_gaps": {
             "overall": "Based on your assessment, we've identified areas for improvement",
             "areas": [
-                {"skill": "Data Analysis",
+                {"skill": "Data Analysis", 
                  "level": "needs improvement" if skill_level == "beginner" else "satisfactory"},
-                {"skill": "Programming", "level": "satisfactory" if skill_level == "advanced" else "needs improvement"}
+                {"skill": "Programming", 
+                 "level": "satisfactory" if skill_level == "advanced" else "needs improvement"}
             ]
         },
         "recommendations": recommendations
     }
-
-    # In a production app, you'd probably want to clean up the cache eventually
-    # background_tasks.add_task(lambda: quiz_cache.pop(submission.quiz_id, None))
-
+    
+    # Store the quiz results in the database
+    try:
+        # Create a document for quiz_results collection
+        quiz_result_doc = {
+            "user_id": ObjectId(user_id),
+            "quiz_id": submission.quiz_id,
+            "timestamp": datetime.utcnow(),
+            "score": result["score"],
+            "assessed_level": skill_level,
+            "user_answers": submission.user_answers,
+            "question_feedback": result["question_feedback"],
+            "skill_gaps": response["skill_gaps"],
+            "recommendations": recommendations
+        }
+        
+        # Store in quiz_results collection
+        db.skill_assessment_results.insert_one(quiz_result_doc)
+        
+        # Update user's assessment status
+        db.users.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"assessment_complete": True}}
+        )
+        
+    except Exception as e:
+        print(f"Error storing quiz results: {str(e)}")
+        # Don't raise an exception here to allow the API to continue
+    
     return response
 
-
-@router.get("/sample/{skill_area}")
-async def get_sample_questions(skill_area: str):
+@router.post("/generate", response_model=Dict[str, Any])
+async def generate_assessment(
+        params: UserParameters,
+        background_tasks: BackgroundTasks,
+        quiz_gen=Depends(get_quiz_generator)
+):
     """
-    Get sample questions for a specific skill area (for testing purposes)
-    """
-    # This endpoint could provide some sample questions without requiring the full generation
-    # Useful for testing the UI without hitting the LLM API
-
-    sample_questions = {
-        "programming": [
-            {
-                "question": "What does the following Python code output? \n\nx = [1, 2, 3]\ny = x\ny.append(4)\nprint(x)",
-                "options": ["[1, 2, 3]", "[1, 2, 3, 4]", "[1, 2, 3], [1, 2, 3, 4]", "Error"],
-                "difficulty": "intermediate"
-            }
-        ],
-        "data_science": [
-            {
-                "question": "Which of the following is NOT a common evaluation metric for classification problems?",
-                "options": ["Precision", "Recall", "Mean Squared Error", "F1 Score"],
-                "difficulty": "intermediate"
-            }
-        ],
-        "leadership": [
-            {
-                "question": "Which leadership style involves making decisions based on input from team members?",
-                "options": ["Autocratic", "Laissez-faire", "Democratic", "Transformational"],
-                "difficulty": "intermediate"
-            }
-        ]
-    }
-
-    if skill_area.lower() not in sample_questions:
-        return {"questions": []}
-
-    return {"questions": sample_questions[skill_area.lower()]}
-
-
-@router.get("/debug")
-async def debug_endpoint():
-    """
-    Debug endpoint to check if the quiz generation is working properly
+    Generate a personalized skill assessment quiz based on user parameters
     """
     try:
-        # Test with hard-coded values
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            return {"error": "GEMINI_API_KEY not found in environment"}
+        # Generate a unique ID for this quiz
+        import uuid
+        quiz_id = str(uuid.uuid4())
 
-        return {
-            "status": "API key found",
-            "message": "Use POST /api/quiz/generate with proper JSON body to generate quiz"
+        # Start quiz generation
+        quiz_content = generate_quiz(
+            model=quiz_gen,
+            primary_goal=params.primary_goal,
+            selected_skills=params.selected_skills,
+            time_commitment=params.time_commitment,
+            career_path=params.career_path,
+            experience_level=params.experience_level,
+            num_questions=params.num_questions
+        )
+
+        # Store the quiz with correct answers in cache
+        global quiz_cache
+        quiz_cache[quiz_id] = quiz_content
+
+        # Create a user-facing version without correct answers
+        user_quiz = {
+            "quiz_id": quiz_id,
+            "questions": [
+                {
+                    "question": q["question"],
+                    "options": q["options"],
+                    "difficulty": q.get("difficulty", "intermediate")
+                }
+                for q in quiz_content["questions"]
+            ]
         }
+
+        return user_quiz
+
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate quiz: {str(e)}"
+        )

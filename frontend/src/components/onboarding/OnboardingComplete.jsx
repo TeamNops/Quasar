@@ -166,16 +166,43 @@ const OnboardingComplete = ({ userData, onComplete, pageVariants }) => {
   };
 
   // Function to handle the start learning button click
-  const handleStartLearning = () => {
-    // Save the onboarding data to localStorage for the assessment to use
-    localStorage.setItem('onboardingData', JSON.stringify(userData));
+// In OnboardingComplete.jsx
+const handleStartLearning = async () => {
+  console.log("Starting the learning journey...");
+  
+  localStorage.setItem('onboardingData', JSON.stringify(userData));
+  localStorage.setItem('onboardingComplete', 'true');
+  
+  try {
+    console.log("Attempting to update backend...");
+    // Update onboarding status in the backend
+    await fetch('http://localhost:8000/api/auth/update-onboarding-status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({ onboarding_complete: true })
+    });
     
-    // Mark the onboarding as complete
-    localStorage.setItem('onboardingComplete', 'true');
+    console.log("Backend updated successfully");
     
-    // Navigate to the skill assessment page
+    // Call the onComplete callback if provided
+    if (onComplete) {
+      console.log("Calling onComplete callback");
+      onComplete();
+    }
+    
+    // Navigate to assessment
+    console.log("Navigating to assessment page");
     navigate('/assessment');
-  };
+  } catch (error) {
+    console.error('Failed to update onboarding status:', error);
+    // Still navigate even if the backend update fails
+    console.log("Navigating to assessment page despite error");
+    navigate('/assessment');
+  }
+};
 
   return (
     <motion.div

@@ -41,14 +41,29 @@ const Login = () => {
   // Updated mutation syntax for v4/v5
   const loginMutation = useMutation({
     mutationFn: loginUser,
-    // In the onSuccess handler:
     onSuccess: (data) => {
       localStorage.setItem("isLoggedIn", "true");
       localStorage.setItem("token", data.token);
 
+      // Store onboarding status
       if (data.onboarding_complete) {
+        localStorage.setItem("onboardingComplete", "true");
+      }
+
+      // Store assessment status if available in response
+      if (data.assessment_complete) {
+        localStorage.setItem("skillAssessmentComplete", "true");
+      }
+
+      // Determine where to navigate based on onboarding and assessment status
+      if (data.assessment_complete) {
+        // Both onboarding and assessment are complete, go to dashboard
         navigate("/dashboard");
+      } else if (data.onboarding_complete && !data.assessment_complete) {
+        // Onboarding is complete but assessment is not
+        navigate("/assessment");
       } else {
+        // Onboarding is not complete
         navigate("/onboarding");
       }
     },

@@ -115,48 +115,48 @@ def generate_skill_playlist(input_json):
     return result
 
 # Example usage:
-if __name__ == "__main__":
-    sample_json = """
-    {
-      "score": {
-        "correct": 5,
-        "total": 10,
-        "percentage": 50
-      },
-      "assessed_level": "intermediate",
-      "question_feedback": [
-        {
-          "question_index": 0,
-          "is_correct": true,
-          "correct_answer": 1,
-          "explanation": "NumPy is the fundamental package for scientific computing in Python, providing support for large, multi-dimensional arrays and matrices."
-        }
-      ],
-      "skill_gaps": {
-        "overall": "Based on your assessment, we've identified areas for improvement",
-        "areas": [
-          {
-            "skill": "Data Analysis",
-            "level": "satisfactory"
-          },
-          {
-            "skill": "Programming",
-            "level": "needs improvement"
-          }
-        ]
-      },
-      "recommendations": [
-        {
-          "title": "Machine Learning Algorithms",
-          "type": "course"
-        }
-      ]
-    }
-    """
-    playlists = generate_skill_playlist(sample_json)
-    print(playlists)
-    print("\n--- Generated Playlists ---")
-    for item in playlists:
-        print(f"\nSkill: {item['skill']}")
-        for concept in item["playlist"]:
-            print(f"  - {concept['concept']}: {concept['youtube_link']}")
+# if __name__ == "__main__":
+#     sample_json = """
+#     {
+#       "score": {
+#         "correct": 5,
+#         "total": 10,
+#         "percentage": 50
+#       },
+#       "assessed_level": "intermediate",
+#       "question_feedback": [
+#         {
+#           "question_index": 0,
+#           "is_correct": true,
+#           "correct_answer": 1,
+#           "explanation": "NumPy is the fundamental package for scientific computing in Python, providing support for large, multi-dimensional arrays and matrices."
+#         }
+#       ],
+#       "skill_gaps": {
+#         "overall": "Based on your assessment, we've identified areas for improvement",
+#         "areas": [
+#           {
+#             "skill": "Data Analysis",
+#             "level": "satisfactory"
+#           },
+#           {
+#             "skill": "Programming",
+#             "level": "needs improvement"
+#           }
+#         ]
+#       },
+#       "recommendations": [
+#         {
+#           "title": "Machine Learning Algorithms",
+#           "type": "course"
+#         }
+#       ]
+#     }
+#     """
+#     playlists = generate_skill_playlist(sample_json)
+#     print(playlists)
+#     print("\n--- Generated Playlists ---")
+#     for item in playlists:
+#         print(f"\nSkill: {item['skill']}")
+#         for concept in item["playlist"]:
+#             print(f"  - {concept['concept']}: {concept['youtube_link']}")

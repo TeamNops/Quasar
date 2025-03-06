@@ -67,6 +67,47 @@ async def register(user: UserRegistration):
         "onboarding_complete": False
     }
 
+@router.post("/update-onboarding-status")
+async def update_onboarding_status(
+    status: dict,
+    authorization: str = Header(None)
+):
+    # Check for the Authorization header
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Extract the token
+    token = authorization.split(" ")[1]
+    
+    try:
+        # Decode the token to get user_id
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid authentication token")
+            
+        # Convert user_id string to ObjectId
+        from bson import ObjectId
+        user_id = ObjectId(user_id)
+        
+        # Update the user's onboarding status
+        db = get_db()
+        users_collection = db.users
+        
+        update_result = users_collection.update_one(
+            {"_id": user_id},
+            {"$set": {"onboarding_complete": status.get("onboarding_complete", True)}}
+        )
+        
+        if update_result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        return {"message": "Onboarding status updated successfully"}
+        
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid authentication token")
+
 @router.post("/login")
 async def login(credentials: UserLogin):
     db = get_db()
@@ -85,12 +126,57 @@ async def login(credentials: UserLogin):
     # Generate JWT token
     access_token = create_access_token(str(user["_id"]))
     
-    # Get onboarding status
+    # Get onboarding status and assessment status
     onboarding_complete = user.get("onboarding_complete", False)
+    assessment_complete = user.get("assessment_complete", False)
     
     return {
         "message": "User logged in successfully", 
         "user_id": str(user["_id"]),
         "token": access_token,
-        "onboarding_complete": onboarding_complete
+        "onboarding_complete": onboarding_complete,
+        "assessment_complete": assessment_complete
     }
+
+# Add this to your auth_routes.py file
+
+@router.post("/update-assessment-status")
+async def update_assessment_status(
+    status: dict,
+    authorization: str = Header(None)
+):
+    # Check for the Authorization header
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Extract the token
+    token = authorization.split(" ")[1]
+    
+    try:
+        # Decode the token to get user_id
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid authentication token")
+            
+        # Convert user_id string to ObjectId if needed
+        from bson import ObjectId
+        user_id = ObjectId(user_id)
+        
+        # Update the user's assessment status
+        db = get_db()
+        users_collection = db.users
+        
+        update_result = users_collection.update_one(
+            {"_id": user_id},
+            {"$set": {"assessment_complete": status.get("assessment_complete", True)}}
+        )
+        
+        if update_result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        return {"message": "Assessment status updated successfully"}
+        
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid authentication token")

@@ -17,12 +17,15 @@ import OnboardingComplete from './OnboardingComplete';
 const Onboarding = () => {
   const [step, setStep] = useState(1);
   const [userData, setUserData] = useState({});
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
   const navigate = useNavigate();
 
   // Check if user is logged in
   useEffect(() => {
     const isLoggedIn = localStorage.getItem('isLoggedIn');
-    if (!isLoggedIn) {
+    const onboardingComplete = localStorage.getItem('onboardingComplete');
+    const skillAssessmentComplete = localStorage.getItem('skillAssessmentComplete');
+    if (!isLoggedIn && onboardingComplete && skillAssessmentComplete) {
       navigate('/login');
     }
   }, [navigate]);
@@ -111,6 +114,13 @@ const Onboarding = () => {
     
     // Submit all data to API
     onboardingMutation.mutate(finalData);
+  };
+
+  const handleFinalStep = () => {
+    // This should NOT navigate to dashboard
+    // It should just update the state
+    setOnboardingComplete(true);
+    // Do NOT navigate here - let the OnboardingComplete component handle it
   };
 
   // Get the correct step icon
@@ -250,7 +260,7 @@ const Onboarding = () => {
           {step === 4 && (
             <OnboardingComplete 
               userData={userData}
-              onComplete={handleCompleteOnboarding}
+              onComplete={handleFinalStep}  // Make sure this doesn't navigate
               pageVariants={pageVariants}
             />
           )}
