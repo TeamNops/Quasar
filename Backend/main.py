@@ -6,6 +6,7 @@ import uvicorn
 from routes.mcq_routes import router as mcq_router
 from routes.auth_routes import router as auth_router
 from routes.onboarding_routes import router as onboarding_router
+from routes.youtube_education import router as youtube_router
 
 # Load environment variables from .env file
 load_dotenv()
@@ -35,6 +36,7 @@ app.add_middleware(
 app.include_router(mcq_router)
 app.include_router(auth_router)
 app.include_router(onboarding_router)
+app.include_router(youtube_router)
 
 # Health check endpoint
 @app.get("/health")
