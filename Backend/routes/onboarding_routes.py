@@ -123,7 +123,7 @@ async def get_user_skills(user_id: str = Depends(get_current_user_id)):
     skills = []
     
     # Convert ObjectId to string for JSON response
-    async for skill in skills_cursor:
+    for skill in skills_cursor:
         skill["_id"] = str(skill["_id"])
         skill["user_id"] = str(skill["user_id"])
         skills.append(skill)
