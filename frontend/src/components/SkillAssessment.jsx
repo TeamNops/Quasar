@@ -23,25 +23,68 @@ const SkillAssesment = () => {
   const [assessmentResults, setAssessmentResults] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isReassessment, setIsReassessment] = useState(false);
+  const [previousAssessmentInfo, setPreviousAssessmentInfo] = useState(null);
 
   // Check if user is logged in and if assessment has been completed
   useEffect(() => {
     const isLoggedIn = localStorage.getItem('isLoggedIn');
-    const assessmentStatus = localStorage.getItem('skillAssessmentComplete');
     
     if (!isLoggedIn) {
       navigate('/login');
-    } else if (assessmentStatus === 'true') {
-      // Skip assessment if already completed
-      navigate('/dashboard');
-    } else {
-      // Get onboarding data to use for quiz generation
-      const onboardingData = JSON.parse(localStorage.getItem('onboardingData') || '{}');
-      if (!onboardingData || Object.keys(onboardingData).length === 0) {
-        navigate('/onboarding');
-      } else {
+      return;
+    }
+    
+    // Check if this is a reassessment
+    const reassessmentInfo = localStorage.getItem('reassessmentInfo');
+    
+    if (reassessmentInfo) {
+      // This is a reassessment - parse the data and proceed regardless of other conditions
+      try {
+        const parsedInfo = JSON.parse(reassessmentInfo);
+        setIsReassessment(true);
+        setPreviousAssessmentInfo(parsedInfo);
+
+        // Get any available onboarding data, but don't redirect if missing
+        // We don't care if onboarding data is incomplete for reassessment
+        const onboardingData = JSON.parse(localStorage.getItem('onboardingData') || '{}');
         fetchQuiz(onboardingData);
+        
+        // DON'T clear the reassessment info here - we'll clear it after quiz submission
+        // localStorage.removeItem('reassessmentInfo');
+        
+        return; // Exit early since we're handling reassessment
+      } catch (error) {
+        console.error('Error processing reassessment data:', error);
+        // Continue with normal flow if there's an error
       }
+    }
+    
+    // Normal assessment flow - check if assessment is already completed
+    const assessmentStatus = localStorage.getItem('skillAssessmentComplete');
+    
+    if (assessmentStatus === 'true') {
+      // Skip assessment if already completed and not explicitly requesting reassessment
+      navigate('/dashboard');
+      return;
+    }
+    
+    // For normal assessment flow (not reassessment), we need complete onboarding data
+    try {
+      const onboardingData = JSON.parse(localStorage.getItem('onboardingData') || '{}');
+      const onboardingComplete = localStorage.getItem('onboardingComplete');
+      
+      if (!onboardingComplete || onboardingComplete !== 'true' || 
+          !onboardingData || Object.keys(onboardingData).length === 0) {
+        navigate('/onboarding');
+        return;
+      }
+      
+      // Proceed with quiz generation only if we have onboarding data
+      fetchQuiz(onboardingData);
+    } catch (error) {
+      console.error('Error checking onboarding data:', error);
+      navigate('/onboarding');
     }
   }, [navigate]);
 
@@ -49,20 +92,47 @@ const SkillAssesment = () => {
   const fetchQuiz = async (onboardingData) => {
     setIsLoading(true);
     try {
+      // Prepare the request body with defaults if some data is missing
+      const requestBody = {
+        primary_goal: onboardingData.primaryGoal || "Career Development",
+        selected_skills: onboardingData.prioritySkills || ['programming'],
+        time_commitment: onboardingData.timeCommitment || "Moderate (4-7 hours)",
+        career_path: onboardingData.careerPath || "Software Development",
+        experience_level: onboardingData.experienceLevel || 'intermediate',
+        num_questions: 10
+      };
+      
+      // If this is a reassessment, adjust the difficulty based on previous results
+      if (isReassessment && previousAssessmentInfo) {
+        // Adjust the experience level based on previous assessment
+        const prevLevel = previousAssessmentInfo.previousLevel;
+        const prevScore = previousAssessmentInfo.previousScore;
+        
+        // If they scored high in their level, increase difficulty
+        if (prevScore > 75) {
+          if (prevLevel === 'beginner') requestBody.experience_level = 'intermediate';
+          else if (prevLevel === 'intermediate') requestBody.experience_level = 'advanced';
+        }
+        // If they scored low, decrease difficulty or keep at beginner
+        else if (prevScore < 40) {
+          if (prevLevel === 'advanced') requestBody.experience_level = 'intermediate';
+          else if (prevLevel === 'intermediate') requestBody.experience_level = 'beginner';
+        } else {
+          // Use their previous level if score was average
+          requestBody.experience_level = prevLevel;
+        }
+        
+        // Mark as reassessment so backend can adapt questions accordingly
+        requestBody.is_reassessment = true;
+      }
+      
       const response = await fetch('http://localhost:8000/api/quiz/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify({
-          primary_goal: onboardingData.primaryGoal,
-          selected_skills: onboardingData.prioritySkills || ['programming'],
-          time_commitment: onboardingData.timeCommitment,
-          career_path: onboardingData.careerPath,
-          experience_level: onboardingData.experienceLevel || 'intermediate',
-          num_questions: 10
-        })
+        body: JSON.stringify(requestBody)
       });
       
       if (!response.ok) {
@@ -130,6 +200,9 @@ const submitQuiz = async () => {
     localStorage.setItem('skillAssessmentComplete', 'true');
     localStorage.setItem('skillAssessmentResults', JSON.stringify(results));
     
+    // NOW clear the reassessment info after the quiz is successfully submitted
+    localStorage.removeItem('reassessmentInfo');
+    
     setIsLoading(false);
   } catch (err) {
     setError(err.message);
@@ -162,6 +235,10 @@ const submitQuiz = async () => {
 
   // Handle completion and navigate to dashboard
   const handleComplete = () => {
+    // Make sure reassessment info is cleared
+    localStorage.removeItem('reassessmentInfo');
+    
+    // Navigate to recommendations
     navigate('/recommendations');
   };
 
@@ -253,10 +330,52 @@ const submitQuiz = async () => {
           <div className="bg-gray-800/60 backdrop-blur-lg border border-gray-700/50 rounded-2xl p-8 shadow-xl">
             <div className="text-center mb-6">
               <IoCheckmarkCircleOutline className="mx-auto text-green-500 text-5xl mb-4" />
-              <h2 className="text-2xl font-bold text-white mb-2">Assessment Complete!</h2>
-              <p className="text-gray-300">Great job! Here's an overview of your current skill level.</p>
+              <h2 className="text-2xl font-bold text-white mb-2">
+                {isReassessment ? "Reassessment Complete!" : "Assessment Complete!"}
+              </h2>
+              <p className="text-gray-300">
+                {isReassessment 
+                  ? "Great job improving your skills! Here's your updated level."
+                  : "Great job! Here's an overview of your current skill level."}
+              </p>
             </div>
             
+            {/* Show improvement if this is a reassessment and we have previous data */}
+            {isReassessment && previousAssessmentInfo && (
+              <div className="mb-6 p-4 bg-blue-900/30 border border-blue-800/50 rounded-xl">
+                <h3 className="text-lg font-medium text-white mb-2">Your Progress</h3>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-sm text-gray-300">Previous Level:</p>
+                    <p className="text-md font-medium capitalize text-white">
+                      {previousAssessmentInfo.previousLevel}
+                    </p>
+                  </div>
+                  <div className="text-2xl text-blue-400">→</div>
+                  <div>
+                    <p className="text-sm text-gray-300">Current Level:</p>
+                    <p className="text-md font-medium capitalize text-white">
+                      {assessed_level}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <p className="text-sm text-gray-300">Score Change:</p>
+                  <p className={`text-md font-medium ${
+                    score.percentage > previousAssessmentInfo.previousScore 
+                      ? "text-green-400" 
+                      : score.percentage < previousAssessmentInfo.previousScore 
+                        ? "text-red-400" 
+                        : "text-gray-300"
+                  }`}>
+                    {previousAssessmentInfo.previousScore.toFixed(0)}% → {score.percentage.toFixed(0)}%
+                    {score.percentage > previousAssessmentInfo.previousScore && " (+)"}
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {/* Rest of the result display */}
             <div className="mb-8 p-4 bg-gray-700/50 rounded-xl">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-medium text-white">Your Score</h3>
@@ -364,7 +483,14 @@ const submitQuiz = async () => {
         <div className="bg-gray-800/60 backdrop-blur-lg border border-gray-700/50 rounded-2xl p-6 shadow-xl">
           <div className="mb-6">
             <div className="flex justify-between items-center mb-2">
-              <h2 className="text-xl font-bold text-white">Skill Assessment</h2>
+              <div className="flex items-center">
+                <h2 className="text-xl font-bold text-white">Skill Assessment</h2>
+                {isReassessment && (
+                  <span className="ml-2 px-2 py-1 bg-purple-900/50 border border-purple-500/30 text-xs text-purple-300 rounded-full">
+                    Reassessment
+                  </span>
+                )}
+              </div>
               <span className="text-sm font-medium text-gray-300">
                 Question {currentQuestionIndex + 1} of {quizData.questions.length}
               </span>
@@ -376,6 +502,13 @@ const submitQuiz = async () => {
                 style={{ width: `${progress}%` }}
               ></div>
             </div>
+            
+            {isReassessment && previousAssessmentInfo && (
+              <div className="mt-3 p-2 bg-gray-700/50 rounded-lg text-xs text-gray-300">
+                Previous level: <span className="text-blue-400 capitalize">{previousAssessmentInfo.previousLevel}</span> | 
+                Previous score: <span className="text-blue-400">{previousAssessmentInfo.previousScore.toFixed(0)}%</span>
+              </div>
+            )}
           </div>
           
           {currentQuestion && (

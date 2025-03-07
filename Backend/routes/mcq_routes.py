@@ -220,3 +220,49 @@ async def generate_assessment(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate quiz: {str(e)}"
         )
+
+@router.get("/assessment-history")
+async def get_assessment_history(authorization: str = Header(None)):
+    """
+    Get a user's assessment history
+    """
+    # Check authorization
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(" ")[1]
+    
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid authentication token")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token format")
+
+    # Get database connection
+    db = get_db()
+    
+    try:
+        # Find all assessment results for this user, sorted by timestamp (newest first)
+        results = list(db.skill_assessment_results.find(
+            {"user_id": ObjectId(user_id)},
+            {"_id": 0}  # Exclude MongoDB _id field
+        ).sort("timestamp", -1))
+        
+        # Convert ObjectId to string and format timestamps
+        for result in results:
+            if "timestamp" in result:
+                result["timestamp"] = result["timestamp"].isoformat()
+            if "user_id" in result and isinstance(result["user_id"], ObjectId):
+                result["user_id"] = str(result["user_id"])
+        
+        return {"assessments": results}
+    
+    except Exception as e:
+        print(f"Error retrieving assessment history: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve assessment history: {str(e)}"
+        )

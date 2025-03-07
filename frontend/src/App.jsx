@@ -29,16 +29,17 @@ const UserProgressRoute = ({ children }) => {
   const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
   const onboardingComplete = localStorage.getItem("onboardingComplete") === "true";
   const assessmentComplete = localStorage.getItem("skillAssessmentComplete") === "true";
+  const reassessmentInfo = localStorage.getItem("reassessmentInfo");
 
   if (!isLoggedIn) {
     return <Navigate to="/login" replace />;
   }
 
-  if (!onboardingComplete) {
+  if (!onboardingComplete && !reassessmentInfo) {
     return <Navigate to="/onboarding" replace />;
   }
 
-  if (!assessmentComplete) {
+  if (!assessmentComplete && !reassessmentInfo) {
     return <Navigate to="/assessment" replace />;
   }
 

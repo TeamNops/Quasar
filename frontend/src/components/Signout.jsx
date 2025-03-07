@@ -7,6 +7,7 @@ const Signout = () => {
 
   const handleSignOut = () => {
     // Clear authentication and onboarding data
+    localStorage.removeItem('token');
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('onboardingData');
     localStorage.removeItem('onboardingComplete');

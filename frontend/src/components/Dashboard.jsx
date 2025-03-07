@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import IconsCarousel from "./IconsCarousel";
 import UserSkills from "./UserSkills";
+import AssessmentHistoryChart from './AssessmentHistoryChart';
+import SkillRadarChart from './SkillRadarChart';
 // Import icons
 import {
   IoBarChartOutline,
@@ -21,6 +23,7 @@ const Dashboard = () => {
   const [assessmentResults, setAssessmentResults] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [userSkills, setUserSkills] = useState([]);
+  const [assessmentHistory, setAssessmentHistory] = useState([]);
   // New state for analytics data
   const [analyticsData, setAnalyticsData] = useState({
     learningStreak: 5,
@@ -47,6 +50,104 @@ const Dashboard = () => {
     ],
   });
 
+  // Function to handle retaking the assessment
+  const handleRetakeAssessment = () => {
+    // Get the current level to determine the new assessment difficulty
+    const currentLevel = assessmentResults?.assessed_level || "intermediate";
+
+    console.log("Starting reassessment with previous level:", currentLevel);
+
+    // Set skillAssessmentComplete to false to ensure the assessment page doesn't redirect
+    localStorage.setItem("skillAssessmentComplete", "false");
+
+    // Store the information about reassessment in localStorage
+    localStorage.setItem(
+      "reassessmentInfo",
+      JSON.stringify({
+        previousLevel: currentLevel,
+        previousScore: assessmentResults?.score?.percentage || 0,
+        isReassessment: true,
+        timestamp: new Date().toISOString(),
+      })
+    );
+
+    // Navigate to the assessment page
+    navigate("/assessment");
+  };
+
+  // Fetch assessment results including historical data
+  const fetchAssessmentHistory = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const response = await fetch(
+        "http://localhost:8000/api/quiz/assessment-history",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        // Store all assessment history for the chart
+        if (data.assessments && data.assessments.length > 0) {
+          setAssessmentHistory(data.assessments);
+          setAssessmentResults(data.assessments[0]); // Most recent assessment
+
+          // Update analytics with assessment progress if there are multiple assessments
+          if (data.assessments.length > 1) {
+            const progressData = calculateAssessmentProgress(data.assessments);
+            setAnalyticsData((prevData) => ({
+              ...prevData,
+              assessmentProgress: progressData,
+            }));
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching assessment history:", error);
+    }
+  };
+
+  // Calculate progress between assessments
+  const calculateAssessmentProgress = (assessments) => {
+    // Sort by timestamp descending (newest first)
+    const sortedAssessments = [...assessments].sort(
+      (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+    );
+
+    // Compare the most recent two assessments
+    if (sortedAssessments.length >= 2) {
+      const latest = sortedAssessments[0];
+      const previous = sortedAssessments[1];
+
+      return {
+        scoreChange: latest.score.percentage - previous.score.percentage,
+        levelChange:
+          latest.assessed_level !== previous.assessed_level
+            ? `${previous.assessed_level} → ${latest.assessed_level}`
+            : null,
+        improvedAreas: latest.skill_gaps.areas
+          .filter(
+            (area) =>
+              area.level === "satisfactory" &&
+              previous.skill_gaps.areas.find(
+                (prevArea) =>
+                  prevArea.skill === area.skill &&
+                  prevArea.level === "needs improvement"
+              )
+          )
+          .map((area) => area.skill),
+        timestamp: latest.timestamp,
+      };
+    }
+
+    return null;
+  };
+
   useEffect(() => {
     // Check if user is logged in
     const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
@@ -71,11 +172,14 @@ const Dashboard = () => {
       return;
     }
 
-    // Load assessment results from localStorage
+    // Load assessment results from localStorage for immediate display
     const storedResults = localStorage.getItem("skillAssessmentResults");
     if (storedResults) {
       setAssessmentResults(JSON.parse(storedResults));
     }
+
+    // Fetch full assessment history from the server
+    fetchAssessmentHistory();
 
     setIsLoading(false);
   }, [navigate]);
@@ -114,7 +218,7 @@ const Dashboard = () => {
           console.error("No authentication token found");
           return;
         }
-  
+
         const response = await fetch(
           "http://localhost:8000/api/auth/user-profile",
           {
@@ -123,11 +227,11 @@ const Dashboard = () => {
             },
           }
         );
-  
+
         if (!response.ok) {
           throw new Error(`Failed to fetch user data: ${response.status}`);
         }
-  
+
         const data = await response.json();
         setUserData(data);
         console.log("Fetched user data:", data);
@@ -137,7 +241,7 @@ const Dashboard = () => {
         setIsLoading(false); // Ensure loading state is updated even if fetch fails
       }
     };
-  
+
     fetchUserData();
   }, []);
 
@@ -232,13 +336,23 @@ const Dashboard = () => {
                       )}
                     </ul>
 
-                    <button
-                      onClick={() => navigate("/recommendations")}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center"
-                    >
-                      View Resources
-                      <IoArrowForwardOutline className="ml-1" />
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <button
+                        onClick={() => navigate("/recommendations")}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center"
+                      >
+                        View Resources
+                        <IoArrowForwardOutline className="ml-1" />
+                      </button>
+
+                      <button
+                        onClick={handleRetakeAssessment}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center justify-center"
+                      >
+                        Retake Assessment
+                        <IoBarChartOutline className="ml-1" />
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-6">
@@ -323,6 +437,201 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
+
+          {/* Add this after the Assessment Summary card if assessmentProgress data exists */}
+          {analyticsData.assessmentProgress && (
+            <div className="mt-6 bg-gray-700/50 rounded-xl p-6">
+              <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
+                <IoRocketOutline className="mr-2 text-purple-400" />
+                Assessment Progress
+              </h2>
+
+              <div className="space-y-4">
+                {analyticsData.assessmentProgress.levelChange && (
+                  <div className="bg-gray-800/50 p-4 rounded-lg">
+                    <h3 className="text-white font-medium mb-2">
+                      Level Improvement
+                    </h3>
+                    <div className="flex items-center space-x-3">
+                      <div className="bg-gray-700/70 py-1 px-3 rounded-lg capitalize">
+                        {
+                          analyticsData.assessmentProgress.levelChange.split(
+                            " → "
+                          )[0]
+                        }
+                      </div>
+                      <IoArrowForwardOutline className="text-purple-400" />
+                      <div className="bg-purple-900/40 border border-purple-500/30 py-1 px-3 rounded-lg capitalize">
+                        {
+                          analyticsData.assessmentProgress.levelChange.split(
+                            " → "
+                          )[1]
+                        }
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-gray-800/50 p-4 rounded-lg">
+                  <h3 className="text-white font-medium mb-2">Score Change</h3>
+                  <div
+                    className={`text-xl font-bold ${
+                      analyticsData.assessmentProgress.scoreChange > 0
+                        ? "text-green-400"
+                        : analyticsData.assessmentProgress.scoreChange < 0
+                        ? "text-red-400"
+                        : "text-gray-300"
+                    }`}
+                  >
+                    {analyticsData.assessmentProgress.scoreChange > 0 && "+"}
+                    {analyticsData.assessmentProgress.scoreChange.toFixed(1)}%
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Since your last assessment on{" "}
+                    {new Date(
+                      analyticsData.assessmentProgress.timestamp
+                    ).toLocaleDateString()}
+                  </p>
+                </div>
+
+                {analyticsData.assessmentProgress.improvedAreas.length > 0 && (
+                  <div className="bg-gray-800/50 p-4 rounded-lg">
+                    <h3 className="text-white font-medium mb-2">
+                      Improved Areas
+                    </h3>
+                    <ul className="space-y-1">
+                      {analyticsData.assessmentProgress.improvedAreas.map(
+                        (area, index) => (
+                          <li key={index} className="flex items-center">
+                            <span className="h-2 w-2 rounded-full bg-green-400 mr-2"></span>
+                            {area}
+                          </li>
+                        )
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Assessment History Chart */}
+          {assessmentHistory.length > 1 && (
+            <div className="mt-6 bg-gray-700/50 rounded-xl p-6">
+              <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
+                <IoBarChartOutline className="mr-2 text-blue-400" />
+                Assessment Progress Over Time
+              </h2>
+              
+              <div className="w-full overflow-hidden">
+                <AssessmentHistoryChart assessmentHistory={assessmentHistory} />
+              </div>
+              
+              <div className="mt-4 text-center">
+                <p className="text-sm text-gray-400">
+                  {assessmentHistory.length} assessments taken
+                  {assessmentHistory.length > 1 && 
+                    ` · First assessment: ${new Date(assessmentHistory[assessmentHistory.length-1].timestamp).toLocaleDateString()}`}
+                </p>
+                {assessmentHistory.length >= 3 && (
+                  <p className="text-sm text-gray-400 mt-1">
+                    Average score: {(assessmentHistory.reduce((sum, a) => sum + a.score.percentage, 0) / assessmentHistory.length).toFixed(1)}%
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {assessmentHistory.length >= 2 && (
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div className="bg-gray-700/50 rounded-xl p-6">
+                <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
+                  <IoRocketOutline className="mr-2 text-purple-400" />
+                  Skill Comparison
+                </h2>
+                <div className="w-full overflow-hidden">
+                  <SkillRadarChart assessments={assessmentHistory} />
+                </div>
+                <p className="text-xs text-gray-400 text-center mt-2">
+                  Comparing your most recent two assessments
+                </p>
+              </div>
+              
+              {/* You could add another visualization or content card here */}
+              <div className="bg-gray-700/50 rounded-xl p-6">
+                <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
+                  <IoBarChartOutline className="mr-2 text-green-400" />
+                  Assessment Statistics
+                </h2>
+                
+                <div className="space-y-4">
+                  <div className="bg-gray-800/50 p-4 rounded-lg">
+                    <h3 className="text-white font-medium mb-2">Assessment Summary</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-xs text-gray-400">Total Assessments</p>
+                        <p className="text-xl text-white font-semibold">{assessmentHistory.length}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Best Score</p>
+                        <p className="text-xl text-green-400 font-semibold">
+                          {Math.max(...assessmentHistory.map(a => a.score.percentage)).toFixed(0)}%
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Avg. Time Between</p>
+                        <p className="text-xl text-white font-semibold">
+                          {assessmentHistory.length >= 3 ? 
+                            Math.round(
+                              (new Date(assessmentHistory[0].timestamp) - new Date(assessmentHistory[assessmentHistory.length-1].timestamp)) / 
+                              (1000 * 60 * 60 * 24 * (assessmentHistory.length - 1))
+                            ) + "d" : 
+                            "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Improvement</p>
+                        <p className={`text-xl font-semibold ${
+                          assessmentHistory[0].score.percentage > assessmentHistory[assessmentHistory.length-1].score.percentage ?
+                          "text-green-400" : "text-red-400"
+                        }`}>
+                          {(assessmentHistory[0].score.percentage - assessmentHistory[assessmentHistory.length-1].score.percentage).toFixed(1)}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-800/50 p-4 rounded-lg">
+                    <h3 className="text-white font-medium mb-3">Level Distribution</h3>
+                    <div className="flex items-center space-x-2">
+                      {["beginner", "intermediate", "advanced"].map(level => {
+                        const count = assessmentHistory.filter(a => a.assessed_level === level).length;
+                        const percentage = (count / assessmentHistory.length) * 100;
+                        
+                        return (
+                          <div key={level} className="flex-1">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-gray-400 capitalize">{level}</span>
+                              <span className="text-gray-300">{count}</span>
+                            </div>
+                            <div className="w-full bg-gray-700 rounded-full h-1.5">
+                              <div 
+                                className={`h-1.5 rounded-full ${
+                                  level === "beginner" ? "bg-green-500" : 
+                                  level === "intermediate" ? "bg-blue-500" : "bg-purple-500"
+                                }`} 
+                                style={{ width: `${percentage}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* More Bento Layout Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">

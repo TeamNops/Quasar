@@ -55,16 +55,24 @@ const Login = () => {
         localStorage.setItem("skillAssessmentComplete", "true");
       }
 
-      // Determine where to navigate based on onboarding and assessment status
-      if (data.assessment_complete) {
-        // Both onboarding and assessment are complete, go to dashboard
-        navigate("/dashboard");
-      } else if (data.onboarding_complete && !data.assessment_complete) {
-        // Onboarding is complete but assessment is not
+      // Check if there's an ongoing reassessment
+      const reassessmentInfo = localStorage.getItem("reassessmentInfo");
+      
+      if (reassessmentInfo) {
+        // If there's a reassessment in progress, continue with it
         navigate("/assessment");
       } else {
-        // Onboarding is not complete
-        navigate("/onboarding");
+        // Normal login flow based on completion status
+        if (data.assessment_complete) {
+          // Both onboarding and assessment are complete, go to dashboard
+          navigate("/dashboard");
+        } else if (data.onboarding_complete && !data.assessment_complete) {
+          // Onboarding is complete but assessment is not
+          navigate("/assessment");
+        } else {
+          // Onboarding is not complete
+          navigate("/onboarding");
+        }
       }
     },
     onError: (error) => {
