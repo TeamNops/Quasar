@@ -70,7 +70,32 @@ async def save_onboarding_data(onboarding_data: OnboardingData, user_id: str = D
         {"$set": career_data}
     )
     
-    # 4. Mark onboarding as complete in user record
+    # 4. Save priority skills to user_skills collection
+    if onboarding_data.prioritySkills and len(onboarding_data.prioritySkills) > 0:
+        # First, remove existing skills to avoid duplicates
+        db.user_skills.delete_many({"user_id": ObjectId(user_id)})
+        
+        # Insert each priority skill as a separate record
+        current_time = datetime.utcnow()
+        skill_documents = []
+        
+        for skill_id in onboarding_data.prioritySkills:
+            skill_document = {
+                "user_id": ObjectId(user_id),
+                "skill_id": skill_id,
+                "experience_level": onboarding_data.experienceLevel or "beginner",
+                "proficiency": 0,  # Initial proficiency level
+                "status": "in_progress",
+                "created_at": current_time,
+                "updated_at": current_time,
+                "last_practiced": None
+            }
+            skill_documents.append(skill_document)
+        
+        if skill_documents:
+            db.user_skills.insert_many(skill_documents)
+    
+    # 5. Mark onboarding as complete in user record
     db.users.update_one(
         {"_id": ObjectId(user_id)},
         {"$set": {"onboarding_complete": True}}
@@ -87,3 +112,20 @@ async def get_onboarding_status(user_id: str = Depends(get_current_user_id)):
         raise HTTPException(status_code=404, detail="User not found")
     
     return {"onboarding_complete": user.get("onboarding_complete", False)}
+
+@router.get("/user-skills")
+async def get_user_skills(user_id: str = Depends(get_current_user_id)):
+    """Retrieve a user's skills"""
+    db = get_db()
+    
+    # Find user skills
+    skills_cursor = db.user_skills.find({"user_id": ObjectId(user_id)})
+    skills = []
+    
+    # Convert ObjectId to string for JSON response
+    async for skill in skills_cursor:
+        skill["_id"] = str(skill["_id"])
+        skill["user_id"] = str(skill["user_id"])
+        skills.append(skill)
+    
+    return skills

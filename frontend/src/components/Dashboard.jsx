@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import IconsCarousel from './IconsCarousel';
+import UserSkills from './UserSkills';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [userData, setUserData] = useState({});
   const [assessmentResults, setAssessmentResults] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [userSkills, setUserSkills] = useState([]);
 
   useEffect(() => {
     // Check if user is logged in
@@ -16,15 +18,51 @@ const Dashboard = () => {
       return;
     }
 
+    // Check if onboarding is complete
+    const onboardingComplete = localStorage.getItem('onboardingComplete') === 'true';
+    if (!onboardingComplete) {
+      navigate('/onboarding');
+      return;
+    }
+
+    // Check if skill assessment is complete
+    const assessmentComplete = localStorage.getItem('skillAssessmentComplete') === 'true';
+    if (!assessmentComplete) {
+      navigate('/assessment');
+      return;
+    }
+
     // Load assessment results from localStorage
     const storedResults = localStorage.getItem('skillAssessmentResults');
     if (storedResults) {
       setAssessmentResults(JSON.parse(storedResults));
     }
     
-    // In a real app, you would fetch the user's data and assessment results from the backend
     setIsLoading(false);
   }, [navigate]);
+
+  useEffect(() => {
+    const fetchUserSkills = async () => {
+      try {
+        if (!localStorage.getItem('token')) return;
+        
+        const response = await fetch('http://localhost:8000/api/onboarding/user-skills', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (response.ok) {
+          const skillsData = await response.json();
+          setUserSkills(skillsData);
+        }
+      } catch (error) {
+        console.error('Error fetching user skills:', error);
+      }
+    };
+    
+    fetchUserSkills();
+  }, []);
 
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
@@ -106,6 +144,13 @@ const Dashboard = () => {
                 </button>
               </div>
             </div>
+          </div>
+          <div className="mt-6">
+            <UserSkills 
+              skills={userSkills} 
+              isLoading={isLoading} 
+              error={null} // Add error state if you have it
+            />
           </div>
         </div>
       </div>

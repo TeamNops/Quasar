@@ -63,6 +63,7 @@ async def root():
             "/api/auth/login",
             "/api/onboarding/save",
             "api/onboarding/status",
+            "api/onboarding/user-skills",
         ]
     }
 
