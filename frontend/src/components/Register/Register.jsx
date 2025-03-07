@@ -67,7 +67,7 @@ const Register = () => {
     mutationFn: registerUser,
     onSuccess: async (data) => {
       // Set the user as logged in
-
+      localStorage.setItem("isLoggedIn", "true");
       // Store the JWT token
       localStorage.setItem('token', data.token);
       

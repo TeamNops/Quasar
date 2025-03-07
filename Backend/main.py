@@ -61,6 +61,7 @@ async def root():
             "/api/quiz/debug",
             "/api/auth/register",
             "/api/auth/login",
+            "/api/auth/user-profile",
             "/api/onboarding/save",
             "api/onboarding/status",
             "api/onboarding/user-skills",
