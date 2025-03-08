@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import IconsCarousel from "./IconsCarousel";
 import UserSkills from "./UserSkills";
 import AssessmentHistoryChart from "./AssessmentHistoryChart";
@@ -489,6 +489,14 @@ const Dashboard = () => {
             <IoGridOutline className="mr-2" />
             View Badge Collection
           </button>
+
+          <RouterLink
+          Link to="/"
+          >
+            <button>
+
+            </button>
+          </RouterLink>
 
           {showBadgeCollection && (
             <BadgeCollection
