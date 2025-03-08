@@ -1,11 +1,59 @@
+
 import json
 import os
 import re
 from dotenv import load_dotenv
 import google.generativeai as genai
 from langchain_community.tools import TavilySearchResults
-from langchain_community.document_loaders import ArxivLoader
+from duckduckgo_search import DDGS  # Install via `pip install duckduckgo-search`
+from duckduckgo_search import DDGS
+from duckduckgo_search.exceptions import DuckDuckGoSearchException
+import json
+from google import genai
+from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
 
+# Initialize the Gemini client (set your API key if needed)
+client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+model_id = "gemini-2.0-flash"
+
+# Configure Google Search as a tool
+google_search_tool = Tool(
+    google_search=GoogleSearch()
+)
+
+def get_web_links(query):
+    # Generate a grounded response for the given query
+    response = client.models.generate_content(
+        model=model_id,
+        contents=query,
+        config=GenerateContentConfig(
+            tools=[google_search_tool],
+            response_modalities=["TEXT"],
+        )
+    )
+    
+    links = []
+    grounding_metadata = response.candidates[0].grounding_metadata
+    #print('grounding \n', grounding_metadata)
+
+    # Try to get grounding chunks with either attribute name
+    chunks = None
+    if hasattr(grounding_metadata, 'groundingChunks'):
+        chunks = grounding_metadata.groundingChunks
+    elif hasattr(grounding_metadata, 'grounding_chunks'):
+        chunks = grounding_metadata.grounding_chunks
+
+    if chunks:
+        for chunk in chunks:
+            # Ensure the chunk has a web attribute and it's not None
+            if hasattr(chunk, 'web') and chunk.web is not None:
+                links.append({
+                    "uri": chunk.web.uri,
+                    "title": chunk.web.title
+                })
+    return links
+
+    
 def tavily_search(query):
     """
     Perform a Tavily search and return relevant documents.
@@ -13,27 +61,33 @@ def tavily_search(query):
     tavily_tool = TavilySearchResults()
     results = tavily_tool.run(query)
     return results
-
-def arxiv_search(query, max_results=5):
-    """
-    Perform an Arxiv search and return research papers.
-    """
-    loader = ArxivLoader(query=query, load_max_docs=max_results)
-    papers = loader.load()
-    return [
-        {
-            "title": paper.metadata.get("Title", "No Title"),
-            "summary": paper.page_content,
-            "link": paper.metadata.get("Entry ID", "No Link")
-        }
-        for paper in papers
-    ]
+import time
+# def duckduckgo_search(query, max_results=5, retries=3, delay=2):
+#     for attempt in range(retries):
+#         try:
+#             with DDGS() as ddgs:
+#                 results = list(ddgs.text(query, max_results=max_results))
+#                 return [
+#                     {
+#                         "title": result.get("title", "No Title"),
+#                         "link": result.get("href", "No Link")
+#                     }
+#                     for result in results
+#                 ]
+#         except DuckDuckGoSearchException as e:
+#             print(f"Attempt {attempt+1} failed with error: {e}")
+#             if attempt < retries - 1:
+#                 print(f"Retrying in {delay} seconds...")
+#                 time.sleep(delay)
+#                 delay *= 2  # Exponential backoff
+#             else:
+#                 raise e
 
 def generate_skill_resources(input_json):
     """
     Takes JSON data (string or dict) as input, extracts skills from the 'skill_gaps' areas,
     generates a learning workflow for each skill via a generative model, retrieves Tavily documents,
-    and Arxiv papers, and returns a list of skills with their respective resources.
+    and DuckDuckGo links, and returns a list of skills with their respective resources.
 
     Returns:
         A list of dictionaries in the format:
@@ -44,8 +98,8 @@ def generate_skill_resources(input_json):
                     {"title": "Doc Title 1", "content": "Doc Content 1", "link": "Doc Link 1"},
                     ...
                 ],
-                "papers": [
-                    {"title": "Paper Title 1", "summary": "Paper Summary 1", "link": "Paper Link 1"},
+                "links": [
+                    {"title": "Link Title 1", "link": "Link URL 1"},
                     ...
                 ]
             },
@@ -64,7 +118,7 @@ def generate_skill_resources(input_json):
     # Extract skills from the JSON data
     improvement_areas = data.get("skill_gaps", {}).get("areas", [])
     skills = [area["skill"] for area in improvement_areas if "skill" in area]
-
+    import google.generativeai as genai
     # Configure the generative AI model
     genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
     generation_config = {
@@ -101,7 +155,7 @@ def generate_skill_resources(input_json):
         print(f"\nRaw response for {skill}:\n{raw_text}")
         return clean_json_response(raw_text)
 
-    # For each skill, generate the workflow, Tavily documents, and Arxiv papers
+    # For each skill, generate the workflow, Tavily documents, and DuckDuckGo links
     result = []
     for skill in skills:
         print(f"\nGenerating workflow for: {skill}")
@@ -117,23 +171,23 @@ def generate_skill_resources(input_json):
         concepts = workflow_data.get("concepts", [])
 
         # Generate Tavily documents
-        tavily_query = f"{skill} learning resources"
+        tavily_query = f"{skill} learning blogs"
         tavily_docs = tavily_search(tavily_query)
 
-        # Generate Arxiv papers
-        arxiv_query = f"{skill}"
-        arxiv_papers = arxiv_search(arxiv_query, max_results=5)
+        # Generate DuckDuckGo links
+        duckduckgo_query = f"{skill} tutorials and guides"
+        #duckduckgo_links = duckduckgo_search(duckduckgo_query, max_results=5)
+        vertexta_ai_search=get_web_links(duckduckgo_query)
 
         # Append results for the current skill
         result.append({
             "skill": skill,
-            "documents": tavily_docs,
-            "papers": arxiv_papers
+            "documents": tavily_docs
         })
 
     return result
 
-
+# # Example usage
 # if __name__ == "__main__":
 #     sample_json = """
 #     {
@@ -173,4 +227,4 @@ def generate_skill_resources(input_json):
 #     }
 #     """
 #     playlists = generate_skill_resources(sample_json)
-#     print(playlists)
+#     print(json.dumps(playlists, indent=4))
