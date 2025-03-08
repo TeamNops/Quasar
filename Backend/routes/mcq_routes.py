@@ -7,7 +7,8 @@ from bson import ObjectId
 from datetime import datetime
 import jwt
 import os
-
+import google.generativeai as genai
+import json
 from functions.mcq_functions import create_quiz_generator, generate_quiz, score_quiz
 from database import get_db
 from jwt_config import settings
@@ -55,13 +56,13 @@ async def submit_quiz(submission: QuizSubmission, authorization: str = Header(No
     # Check authorization
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
+
     token = authorization.split(" ")[1]
-    
+
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id = payload.get("sub")
-        
+
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid authentication token")
     except jwt.PyJWTError:
@@ -71,10 +72,10 @@ async def submit_quiz(submission: QuizSubmission, authorization: str = Header(No
     db = get_db()
 
     global quiz_cache
-    
+
     # Retrieve the quiz from cache or database
     quiz_content = None
-    
+
     if submission.quiz_id in quiz_cache:
         quiz_content = quiz_cache[submission.quiz_id]
     else:
@@ -97,50 +98,152 @@ async def submit_quiz(submission: QuizSubmission, authorization: str = Header(No
 
     # Score the quiz
     result = score_quiz(submission.user_answers, quiz_content)
+    print(result)
 
-    # Generate skill gap analysis and learning recommendations
+    # Generate skill gap analysis and learning recommendations using Gemini
     skill_level = result["assessed_level"]
 
-    # Simple logic for recommendations based on assessed level
-    # In production, this would be more sophisticated
-    recommendations = []
+    # Prepare prompt for Gemini
+    gemini_prompt = f"""
+    Generate personalized skill gap analysis and learning recommendations for a user who has completed 
+    a quiz with and answers '{result}'. 
 
-    if skill_level == "beginner":
-        recommendations = [
-            {"title": "Fundamentals of Programming", "type": "course"},
-            {"title": "Introduction to Data Science", "type": "workshop"},
-            {"title": "Basic Statistical Concepts", "type": "tutorial"}
+    Format the response as a JSON object with:
+    1. A 'recommendations' array with 3 items, each containing 'title' and 'type' fields
+    2. A 'skill_gaps' object with 'overall' description and 'areas' array containing 2 skills with their assessment levels
+
+    The format should match this structure:
+    {{
+      "recommendations": [
+        {{"title": "COURSE_TITLE", "type": "course"}},
+        {{"title": "WORKSHOP_TITLE", "type": "workshop"}},
+        {{"title": "TUTORIAL_TITLE", "type": "tutorial"}}
+      ],
+      "skill_gaps": {{
+        "overall": "OVERALL_ASSESSMENT",
+        "areas": [
+          {{"skill": "skill 1 based on the questions and answer one word only no bracket so that i can query in youtube directly", "level": "LEVEL_ASSESSMENT"}},
+          {{"skill": "skill 2 based on the questions and answer one word only no bracket so that i can query in youtube directly", "level": "LEVEL_ASSESSMENT"}}
         ]
-    elif skill_level == "intermediate":
-        recommendations = [
-            {"title": "Machine Learning Algorithms", "type": "course"},
-            {"title": "SQL for Data Analysis", "type": "workshop"},
-            {"title": "Feature Engineering Techniques", "type": "tutorial"}
-        ]
-    else:  # advanced
-        recommendations = [
-            {"title": "Advanced Deep Learning", "type": "course"},
-            {"title": "Large Scale Data Systems", "type": "workshop"},
-            {"title": "Research Methods in ML", "type": "tutorial"}
-        ]
+      }}
+    }}
+    """
+
+    # Call Gemini API for generating the recommendations and skill gaps
+    try:
+        gemini_response = await call_gemini_api(gemini_prompt)
+        print(f"Raw Gemini response: {gemini_response}")
+
+        # Clean the response - try to extract just the JSON part
+        # Sometimes Gemini returns explanatory text before or after the JSON
+        import re
+        json_match = re.search(r'(\{.*\})', gemini_response, re.DOTALL)
+
+        if json_match:
+            json_str = json_match.group(1)
+            # Try to parse the extracted JSON
+            try:
+                gemini_data = json.loads(json_str)
+                recommendations = gemini_data["recommendations"]
+                skill_gaps = gemini_data["skill_gaps"]
+            except json.JSONDecodeError:
+                raise Exception("Extracted text is not valid JSON")
+        else:
+            raise Exception("No JSON-like structure found in the response")
+
+    except Exception as e:
+        print(f"Error calling Gemini API: {str(e)}")
+        # Fallback to predefined JSON format if Gemini fails
+        example_json = """
+        {
+          "recommendations": [
+            {
+              "title": "Introduction to Data Science: A Beginner's Guide",
+              "type": "course"
+            },
+            {
+              "title": "Hands-on Data Visualization Workshop for Beginners",
+              "type": "workshop"
+            },
+            {
+              "title": "Python for Data Analysis: A Quick Start Tutorial",
+              "type": "tutorial"
+            }
+          ],
+          "skill_gaps": {
+            "overall": "Based on your assessment, you are currently at a beginner level. Focus on building foundational knowledge in core areas of data science to progress.",
+            "areas": [
+              {
+                "skill": "Data Analysis",
+                "level": "Beginner: Requires foundational understanding of statistical concepts and data manipulation techniques."
+              },
+              {
+                "skill": "Programming",
+                "level": "Beginner: Requires understanding of basic programming concepts and ability to write simple scripts for data processing."
+              }
+            ]
+          }
+        }
+        """
+
+        # Modify the example JSON based on skill level
+        if skill_level == "intermediate":
+            example_json = example_json.replace("beginner level", "intermediate level")
+            example_json = example_json.replace("Beginner:", "Intermediate:")
+            example_json = example_json.replace("Introduction to Data Science", "Advanced Data Science Techniques")
+            example_json = example_json.replace("for Beginners", "for Intermediate Users")
+            example_json = example_json.replace("Quick Start", "Intermediate")
+        elif skill_level == "advanced":
+            example_json = example_json.replace("beginner level", "advanced level")
+            example_json = example_json.replace("Beginner:", "Advanced:")
+            example_json = example_json.replace("Introduction to Data Science", "Expert Data Science Applications")
+            example_json = example_json.replace("for Beginners", "for Advanced Practitioners")
+            example_json = example_json.replace("Quick Start", "Advanced")
+
+        try:
+            data = json.loads(example_json)
+            recommendations = data["recommendations"]
+            skill_gaps = data["skill_gaps"]
+        except json.JSONDecodeError:
+            # Ultimate fallback if even our JSON template is problematic
+            if skill_level == "beginner":
+                recommendations = [
+                    {"title": "Fundamentals of Programming", "type": "course"},
+                    {"title": "Introduction to Data Science", "type": "workshop"},
+                    {"title": "Basic Statistical Concepts", "type": "tutorial"}
+                ]
+            elif skill_level == "intermediate":
+                recommendations = [
+                    {"title": "Machine Learning Algorithms", "type": "course"},
+                    {"title": "SQL for Data Analysis", "type": "workshop"},
+                    {"title": "Feature Engineering Techniques", "type": "tutorial"}
+                ]
+            else:  # advanced
+                recommendations = [
+                    {"title": "Advanced Deep Learning", "type": "course"},
+                    {"title": "Large Scale Data Systems", "type": "workshop"},
+                    {"title": "Research Methods in ML", "type": "tutorial"}
+                ]
+
+            skill_gaps = {
+                "overall": "Based on your assessment, we've identified areas for improvement",
+                "areas": [
+                    {"skill": "Data Analysis",
+                     "level": "needs improvement" if skill_level == "beginner" else "satisfactory"},
+                    {"skill": "Programming",
+                     "level": "satisfactory" if skill_level == "advanced" else "needs improvement"}
+                ]
+            }
 
     # Construct the response with skill gaps and recommendations
     response = {
         "score": result["score"],
         "assessed_level": skill_level,
         "question_feedback": result["question_feedback"],
-        "skill_gaps": {
-            "overall": "Based on your assessment, we've identified areas for improvement",
-            "areas": [
-                {"skill": "Data Analysis", 
-                 "level": "needs improvement" if skill_level == "beginner" else "satisfactory"},
-                {"skill": "Programming", 
-                 "level": "satisfactory" if skill_level == "advanced" else "needs improvement"}
-            ]
-        },
+        "skill_gaps": skill_gaps,
         "recommendations": recommendations
     }
-    
+
     # Store the quiz results in the database
     try:
         # Create a document for quiz_results collection
@@ -155,22 +258,57 @@ async def submit_quiz(submission: QuizSubmission, authorization: str = Header(No
             "skill_gaps": response["skill_gaps"],
             "recommendations": recommendations
         }
-        
+
         # Store in quiz_results collection
         db.skill_assessment_results.insert_one(quiz_result_doc)
-        
+
         # Update user's assessment status
         db.users.update_one(
             {"_id": ObjectId(user_id)},
             {"$set": {"assessment_complete": True}}
         )
-        
+
     except Exception as e:
         print(f"Error storing quiz results: {str(e)}")
         # Don't raise an exception here to allow the API to continue
-    
+
     return response
 
+
+# Helper function to call Gemini API
+async def call_gemini_api(prompt: str):
+    """
+    Call the Gemini API to generate content based on the prompt
+    """
+    try:
+        # Configure the API client
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
+        # Initialize the model
+        model = genai.GenerativeModel('gemini-2.0-flash')
+
+        # Set generation config to increase likelihood of proper JSON output
+        generation_config = {
+            "temperature": 0.2,  # Lower temperature for more deterministic output
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 1024,
+        }
+
+        # Add explicit instruction to return only valid JSON
+        enhanced_prompt = prompt + "\n\nIMPORTANT: Return ONLY the JSON object without any additional text, explanation, or markdown formatting."
+
+        # Generate content with configuration
+        response = model.generate_content(
+            enhanced_prompt,
+            generation_config=generation_config
+        )
+
+        # Return the generated text
+        return response.text
+    except Exception as e:
+        print(f"Gemini API error: {str(e)}")
+        raise e
 @router.post("/generate", response_model=Dict[str, Any])
 async def generate_assessment(
         params: UserParameters,
