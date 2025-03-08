@@ -429,6 +429,21 @@ const Dashboard = () => {
             </div>
           </div>
 
+          <button
+            onClick={() => setShowBadgeCollection(true)}
+            className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors mt-6"
+          >
+            <IoGridOutline className="mr-2" />
+            View Badge Collection
+          </button>
+
+          {showBadgeCollection && (
+            <BadgeCollection 
+              badges={badges} 
+              onClose={() => setShowBadgeCollection(false)} 
+            />
+          )}
+
           <div className="mt-4 mb-8">
             <XPProgressBar 
               currentXP={userXP.current} 
@@ -876,25 +891,10 @@ const Dashboard = () => {
             />
           </div>
 
-          <button
-            onClick={() => setShowBadgeCollection(true)}
-            className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors mt-6"
-          >
-            <IoGridOutline className="mr-2" />
-            View Badge Collection
-          </button>
-
-          {showBadgeCollection && (
-            <BadgeCollection 
-              badges={badges} 
-              onClose={() => setShowBadgeCollection(false)} 
-            />
-          )}
-
           {newAchievement && (
             <AchievementNotification 
               achievement={newAchievement} 
-              onClose={() => handleAchievementClose} 
+              onClose={handleAchievementClose} 
             />
           )}
         </div>

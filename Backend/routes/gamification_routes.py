@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+import logging
+from fastapi import APIRouter, Depends, HTTPException, Header, BackgroundTasks
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 from bson import ObjectId
@@ -61,7 +62,7 @@ async def get_user_xp(authorization: str = Header(None)):
     token = authorization.replace("Bearer ", "")
     
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id = payload.get("sub")
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid authentication token")
@@ -99,7 +100,7 @@ async def award_xp(
     token = authorization.replace("Bearer ", "")
     
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id = payload.get("sub")
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid authentication token")
@@ -165,7 +166,7 @@ async def award_xp(
         "level_up": level_up
     }
 
-# Get user's badges
+# Replace get_user_badges function
 @router.get("/badges")
 async def get_user_badges(authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -174,15 +175,15 @@ async def get_user_badges(authorization: str = Header(None)):
     token = authorization.replace("Bearer ", "")
     
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id = payload.get("sub")
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid authentication token")
     
     db = get_db()
     
-    # Get all available badges
-    all_badges = list(db.badges.find({}))
+    # Get all available badges from gamification collection
+    all_badges = list(db.gamification.find({"resource_type": "badge"}))
     
     # Get user's earned badges
     user_data = db.users.find_one({"_id": ObjectId(user_id)})

@@ -30,7 +30,7 @@ const AchievementNotification = ({ achievement, onClose }) => {
   return (
     <AnimatePresence>
       <motion.div 
-        className="fixed bottom-4 right-4 z-50 max-w-sm w-full"
+        className="absolute top-4 right-4 z-50 max-w-sm w-full"
         initial={{ opacity: 0, y: 50, scale: 0.9 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 50, scale: 0.9 }}
