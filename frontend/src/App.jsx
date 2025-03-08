@@ -12,6 +12,7 @@ import SkillAssessmentRecommendations from "./components/SkillAssessmentRecommen
 import YoutubeAssessment from "./components/YoutubeAssessment";
 import Dashboard from "./components/Dashboard";
 import Signout from "./components/Signout";
+import OverallStatistics from "./components/OverallStatistics";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Protected route to ensure the user is logged in
@@ -107,6 +108,12 @@ const App = () => {
                 <UserProgressRoute>
                   <Dashboard />
                 </UserProgressRoute>
+              }
+            />
+            <Route
+              path="/overall-statistics"
+              element={
+                  <OverallStatistics />
               }
             />
           </Routes>

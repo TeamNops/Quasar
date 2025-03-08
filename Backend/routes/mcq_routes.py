@@ -404,3 +404,133 @@ async def get_assessment_history(authorization: str = Header(None)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve assessment history: {str(e)}"
         )
+    
+# Add this route to your existing mcq_routes.py file
+
+@router.get("/statistics")
+async def get_assessment_statistics(authorization: str = Header(None)):
+    """
+    Get overall statistics for quiz assessments for admin/developer use
+    """
+    # Check authorization
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(" ")[1]
+    
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid authentication token")
+            
+        # Optional: Check if user has admin role
+        # db = get_db()
+        # user = db.users.find_one({"_id": ObjectId(user_id)})
+        # if not user or "admin" not in user.get("roles", []):
+        #     raise HTTPException(status_code=403, detail="Access denied")
+            
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token format")
+
+    # Get database connection
+    db = get_db()
+    
+    try:
+        # Calculate skill level distribution
+        level_pipeline = [
+            {"$group": {"_id": "$assessed_level", "count": {"$sum": 1}}},
+            {"$project": {"name": "$_id", "value": "$count", "_id": 0}}
+        ]
+        level_distribution = list(db.skill_assessment_results.aggregate(level_pipeline))
+        
+        # Find common skill gaps
+        skill_gaps = []
+        results = db.skill_assessment_results.find({}, {"skill_gaps": 1})
+        skill_count = {}
+        
+        for result in results:
+            if "skill_gaps" in result and "areas" in result["skill_gaps"]:
+                for area in result["skill_gaps"]["areas"]:
+                    skill = area.get("skill")
+                    if skill:
+                        if skill in skill_count:
+                            skill_count[skill] += 1
+                        else:
+                            skill_count[skill] = 1
+        
+        skill_gaps = [{"name": skill, "frequency": count} 
+                     for skill, count in sorted(skill_count.items(), 
+                                              key=lambda x: x[1], 
+                                              reverse=True)[:10]]
+        
+        # Calculate average scores over time (by month)
+        from datetime import datetime
+        import pandas as pd
+        
+        scores = list(db.skill_assessment_results.find({}, {"timestamp": 1, "score": 1}))
+        
+        # Convert to pandas for easier grouping
+        if scores:
+            df = pd.DataFrame(scores)
+            
+            # Extract score percentage from the nested score structure
+            def extract_percentage(row):
+                if isinstance(row['score'], dict) and 'percentage' in row['score']:
+                    return row['score']['percentage']
+                elif isinstance(row['score'], int):
+                    # Handle case where score might be stored as direct integer
+                    return row['score']
+                return 0  # Default fallback
+            
+            df['score_percentage'] = df.apply(extract_percentage, axis=1)
+            df['month'] = df['timestamp'].dt.strftime('%Y-%m')
+            
+            monthly_avg = df.groupby('month')['score_percentage'].mean().reset_index()
+            average_scores = [{"date": row['month'], "average": round(row['score_percentage'], 2)} 
+                             for _, row in monthly_avg.iterrows()]
+        else:
+            average_scores = []
+            
+        # Count quizzes by month
+        if scores:
+            quiz_counts = df['month'].value_counts().reset_index()
+            quiz_counts.columns = ['month', 'count']
+            quiz_count_by_month = quiz_counts.sort_values('month').to_dict('records')
+        else:
+            quiz_count_by_month = []
+            
+        # Get top recommendations
+        recommendations = []
+        rec_results = db.skill_assessment_results.find({}, {"recommendations": 1})
+        rec_count = {}
+        
+        for result in rec_results:
+            if "recommendations" in result:
+                for rec in result["recommendations"]:
+                    rec_key = f"{rec.get('title')}|{rec.get('type')}"
+                    if rec_key in rec_count:
+                        rec_count[rec_key] += 1
+                    else:
+                        rec_count[rec_key] = 1
+                        
+        top_recs = []
+        for rec_key, count in sorted(rec_count.items(), key=lambda x: x[1], reverse=True)[:10]:
+            title, rec_type = rec_key.split('|')
+            top_recs.append({"title": title, "type": rec_type, "count": count})
+            
+        return {
+            "levelDistribution": level_distribution,
+            "skillGapFrequency": skill_gaps,
+            "averageScores": average_scores,
+            "quizCountByMonth": quiz_count_by_month,
+            "topRecommendations": top_recs
+        }
+    
+    except Exception as e:
+        print(f"Error getting statistics: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve statistics: {str(e)}"
+        )

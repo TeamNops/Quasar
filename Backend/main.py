@@ -64,6 +64,7 @@ async def root():
             "/api/quiz/generate",
             "/api/quiz/submit",
             "/api/quiz/sample/{skill_area}",
+            "api/quiz/statistics"
             "/api/quiz/debug",
 
             # Auth endpoints
