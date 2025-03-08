@@ -58,72 +58,107 @@ const Dashboard = () => {
   const [showBadgeCollection, setShowBadgeCollection] = useState(false);
   const [newAchievement, setNewAchievement] = useState(null);
   const [userXP, setUserXP] = useState({
-    current: 1250,
-    level: 8,
-    levelThreshold: 2000
+    current: 0,
+    level: 1,
+    levelThreshold: 100,
+    total_earned: 0,
   });
 
   // Mock badge data - in a real app, fetch this from your backend
-  const [badges, setBadges] = useState([
-    {
-      id: 1,
-      name: "First Assessment",
-      shortDescription: "Complete your first skill assessment",
-      description: "You've taken your first step in understanding your skills by completing an assessment.",
-      category: "Assessment",
-      color: "blue",
-      icon: "🧠",
-      unlocked: true,
-      earnedDate: "2025-02-15",
-      xpAwarded: 100
-    },
-    {
-      id: 2,
-      name: "Learning Streak",
-      shortDescription: "Maintain a 7-day learning streak",
-      description: "You've consistently engaged with learning materials for 7 consecutive days!",
-      category: "Commitment", 
-      color: "orange",
-      icon: "🔥",
-      unlocked: true,
-      earnedDate: "2025-02-28",
-      xpAwarded: 150,
-      reward: "10% bonus XP on all activities for 24 hours"
-    },
-    {
-      id: 3,
-      name: "Skill Improver",
-      shortDescription: "Improve in at least 3 skill areas",
-      description: "You've shown measurable improvement in 3 or more skill areas based on reassessments.",
-      category: "Growth",
-      color: "green",
-      icon: "📈",
-      unlocked: false,
-      progress: {
-        current: 2,
-        required: 3
+  const [badges, setBadges] = useState([]);
+  const [achievementQueue, setAchievementQueue] = useState([]);
+
+  const fetchUserXP = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      const response = await fetch('http://localhost:8000/api/gamification/xp', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const xpData = await response.json();
+        setUserXP({
+          current: xpData.current,
+          level: xpData.level,
+          levelThreshold: xpData.level_threshold,
+          total_earned: xpData.total_earned
+        });
+        
+        // Update analytics with XP data
+        setAnalyticsData(prev => ({
+          ...prev,
+          learningStreak: xpData.streak || prev.learningStreak
+        }));
       }
-    },
-    {
-      id: 4,
-      name: "Knowledge Explorer",
-      shortDescription: "Complete 15 learning modules",
-      description: "You've completed 15 learning modules across different skill areas.",
-      category: "Learning",
-      color: "purple",
-      icon: "🔍",
-      unlocked: false,
-      progress: {
-        current: 8,
-        required: 15
+    } catch (error) {
+      console.error('Error fetching XP data:', error);
+    }
+  };
+
+  const fetchUserBadges = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      const response = await fetch('http://localhost:8000/api/gamification/badges', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const badgeData = await response.json();
+        setBadges(badgeData.badges.map(badge => ({
+          id: badge.id,
+          name: badge.name,
+          shortDescription: badge.short_description,
+          description: badge.description,
+          category: badge.category,
+          color: badge.color,
+          icon: badge.icon,
+          unlocked: badge.unlocked,
+          earnedDate: badge.earned_date,
+          xpAwarded: badge.xp_awarded,
+          reward: badge.reward || null,
+          progress: badge.progress ? {
+            current: badge.progress.current,
+            required: badge.progress.required
+          } : null
+        })));
+        
+        // Check if there are any newly earned badges since last visit
+        const newlyEarned = badgeData.badges.filter(b => 
+          b.unlocked && 
+          new Date(b.earned_date) > new Date(Date.now() - 24*60*60*1000)
+        );
+        
+        if (newlyEarned.length > 0) {
+          // Queue notifications for newly earned badges
+          setAchievementQueue(newlyEarned.map(badge => ({
+            id: badge.id,
+            name: badge.name,
+            shortDescription: badge.short_description,
+            color: badge.color,
+            icon: badge.icon,
+            xpAwarded: badge.xp_awarded
+          })));
+        }
       }
-    },
-    // Add more badges here
-  ]);
+    } catch (error) {
+      console.error('Error fetching badge data:', error);
+    }
+  };
+
 
   // Simulate unlocking a new achievement (for demo purposes)
   useEffect(() => {
-    // For testing purposes, show a notification after a delay
+    fetchUserXP();
+    fetchUserBadges();
+
     const timer = setTimeout(() => {
       if (!newAchievement) {
         setNewAchievement({
@@ -139,6 +174,22 @@ const Dashboard = () => {
     
     return () => clearTimeout(timer);
   }, []); // Remove newAchievement dependency to prevent loop
+
+  useEffect(() => {
+    if (achievementQueue.length > 0 && !newAchievement) {
+      // Display the first achievement in the queue
+      setNewAchievement(achievementQueue[0]);
+      
+      // Remove it from the queue
+      setAchievementQueue(prev => prev.slice(1));
+    }
+  }, [achievementQueue, newAchievement]);
+  
+  // Handle achievement notification close
+  const handleAchievementClose = () => {
+    setNewAchievement(null);
+    // The next achievement will be shown on next render due to the effect above
+  }
 
   // Function to handle retaking the assessment
   const handleRetakeAssessment = () => {
@@ -843,7 +894,7 @@ const Dashboard = () => {
           {newAchievement && (
             <AchievementNotification 
               achievement={newAchievement} 
-              onClose={() => setNewAchievement(null)} 
+              onClose={() => handleAchievementClose} 
             />
           )}
         </div>
