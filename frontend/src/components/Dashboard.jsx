@@ -4,6 +4,9 @@ import IconsCarousel from "./IconsCarousel";
 import UserSkills from "./UserSkills";
 import AssessmentHistoryChart from './AssessmentHistoryChart';
 import SkillRadarChart from './SkillRadarChart';
+import XPProgressBar from './XPProgressBar';
+import BadgeCollection from './BadgeCollection';
+import AchievementNotification from './AchievementNotification';
 // Import icons
 import {
   IoBarChartOutline,
@@ -15,6 +18,8 @@ import {
   IoCheckmarkCircleOutline,
   IoBookOutline,
   IoArrowForwardOutline,
+  IoPricetagsOutline,
+  IoGridOutline
 } from "react-icons/io5";
 
 const Dashboard = () => {
@@ -49,6 +54,91 @@ const Dashboard = () => {
       },
     ],
   });
+
+  const [showBadgeCollection, setShowBadgeCollection] = useState(false);
+  const [newAchievement, setNewAchievement] = useState(null);
+  const [userXP, setUserXP] = useState({
+    current: 1250,
+    level: 8,
+    levelThreshold: 2000
+  });
+
+  // Mock badge data - in a real app, fetch this from your backend
+  const [badges, setBadges] = useState([
+    {
+      id: 1,
+      name: "First Assessment",
+      shortDescription: "Complete your first skill assessment",
+      description: "You've taken your first step in understanding your skills by completing an assessment.",
+      category: "Assessment",
+      color: "blue",
+      icon: "🧠",
+      unlocked: true,
+      earnedDate: "2025-02-15",
+      xpAwarded: 100
+    },
+    {
+      id: 2,
+      name: "Learning Streak",
+      shortDescription: "Maintain a 7-day learning streak",
+      description: "You've consistently engaged with learning materials for 7 consecutive days!",
+      category: "Commitment", 
+      color: "orange",
+      icon: "🔥",
+      unlocked: true,
+      earnedDate: "2025-02-28",
+      xpAwarded: 150,
+      reward: "10% bonus XP on all activities for 24 hours"
+    },
+    {
+      id: 3,
+      name: "Skill Improver",
+      shortDescription: "Improve in at least 3 skill areas",
+      description: "You've shown measurable improvement in 3 or more skill areas based on reassessments.",
+      category: "Growth",
+      color: "green",
+      icon: "📈",
+      unlocked: false,
+      progress: {
+        current: 2,
+        required: 3
+      }
+    },
+    {
+      id: 4,
+      name: "Knowledge Explorer",
+      shortDescription: "Complete 15 learning modules",
+      description: "You've completed 15 learning modules across different skill areas.",
+      category: "Learning",
+      color: "purple",
+      icon: "🔍",
+      unlocked: false,
+      progress: {
+        current: 8,
+        required: 15
+      }
+    },
+    // Add more badges here
+  ]);
+
+  // Simulate unlocking a new achievement (for demo purposes)
+  useEffect(() => {
+    // For testing purposes, show a notification after a delay
+    const timer = setTimeout(() => {
+      if (!newAchievement) {
+        setNewAchievement({
+          id: "quick-learner-1", // Use a stable ID instead of Math.random()
+          name: "Quick Learner",
+          shortDescription: "Complete 3 modules in a single day",
+          color: "green",
+          icon: "⚡",
+          xpAwarded: 75
+        });
+      }
+    }, 3000);
+    
+    return () => clearTimeout(timer);
+  }, []); // Remove newAchievement dependency to prevent loop
 
   // Function to handle retaking the assessment
   const handleRetakeAssessment = () => {
@@ -273,7 +363,7 @@ const Dashboard = () => {
           <div className="flex flex-col md:flex-row justify-between items-start mb-8">
             <div>
               <h1 className="text-3xl font-bold text-white mb-2">
-                Welcome back, {userData.firstName}
+                Welcome back, {userData.firstName} {userData.lastName}
                 {console.log(userData.firstName)}
               </h1>
               <p className="text-gray-400">
@@ -286,6 +376,14 @@ const Dashboard = () => {
                 {analyticsData.learningStreak} day streak
               </span>
             </div>
+          </div>
+
+          <div className="mt-4 mb-8">
+            <XPProgressBar 
+              currentXP={userXP.current} 
+              levelThreshold={userXP.levelThreshold} 
+              level={userXP.level}
+            />
           </div>
 
           {/* Main Content Grid */}
@@ -726,6 +824,28 @@ const Dashboard = () => {
               error={null}
             />
           </div>
+
+          <button
+            onClick={() => setShowBadgeCollection(true)}
+            className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors mt-6"
+          >
+            <IoGridOutline className="mr-2" />
+            View Badge Collection
+          </button>
+
+          {showBadgeCollection && (
+            <BadgeCollection 
+              badges={badges} 
+              onClose={() => setShowBadgeCollection(false)} 
+            />
+          )}
+
+          {newAchievement && (
+            <AchievementNotification 
+              achievement={newAchievement} 
+              onClose={() => setNewAchievement(null)} 
+            />
+          )}
         </div>
       </div>
     </section>

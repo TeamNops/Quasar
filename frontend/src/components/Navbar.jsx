@@ -16,7 +16,7 @@ const Navbar = () => {
   const navItems = [
     { name: "Home", to: "/" },
     { name: "Features", to: "/#features", isScroll: true },
-    { name: "About", to: "/about" },
+    ...(isLoggedIn ? [{ name: "Dashboard", to: "/dashboard" }] : []),
     { name: "Contact", to: "/contact" },
   ];
 

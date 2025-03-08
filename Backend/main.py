@@ -8,6 +8,7 @@ from routes.auth_routes import router as auth_router
 from routes.onboarding_routes import router as onboarding_router
 from routes.youtube_education import router as youtube_router
 from routes.youtube_quiz_routes import router as youtube_quiz_router
+from routes.gamification_routes import router as gamification_router  # Add this line
 
 # Load environment variables from .env file
 load_dotenv()
@@ -38,8 +39,8 @@ app.include_router(mcq_router)
 app.include_router(auth_router)
 app.include_router(onboarding_router)
 app.include_router(youtube_router)
-app.include_router(youtube_quiz_router)  # New YouTube quiz router
-
+app.include_router(youtube_quiz_router)
+app.include_router(gamification_router)  # Add this line
 
 # Health check endpoint
 @app.get("/health")
@@ -76,12 +77,21 @@ async def root():
             "/api/onboarding/user-skills",
 
             # Existing YouTube education endpoints
-            # (Add your existing YouTube education endpoints here),
+            "/api/youtube/recommendations",
+            "/api/youtube/get_videos",
+            "/api/youtube/search",
 
             # New YouTube quiz endpoints
             "/api/youtube-quiz/generate",
             "/api/youtube-quiz/submit",
-            "/api/youtube-quiz/status/{quiz_id}"
+            "/api/youtube-quiz/status/{quiz_id}",
+
+             # Gamification endpoints
+            "/api/gamification/xp",
+            "/api/gamification/award-xp",
+            "/api/gamification/badges",
+            "/api/gamification/leaderboard",
+            "/api/gamification/streaks"
         ]
     }
 
