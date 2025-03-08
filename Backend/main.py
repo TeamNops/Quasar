@@ -7,20 +7,21 @@ from routes.mcq_routes import router as mcq_router
 from routes.auth_routes import router as auth_router
 from routes.onboarding_routes import router as onboarding_router
 from routes.youtube_education import router as youtube_router
+from routes.youtube_quiz_routes import router as youtube_quiz_router
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Check for required API keys
 if not os.getenv("GOOGLE_API_KEY"):
-    print("Warning: GEMINI_API_KEY not found in .env file. Quiz generation will not work.")
-    print("Please add GEMINI_API_KEY=your_api_key to your .env file")
+    print("Warning: GOOGLE_API_KEY not found in .env file. Quiz generation will not work.")
+    print("Please add GOOGLE_API_KEY=your_api_key to your .env file")
 
 # Initialize FastAPI app
 app = FastAPI(
     title="SkillMaster Assessment API",
     description="API for generating personalized skill assessments and quizzes using Google Gemini",
-    version="1.0.0",
+    version="1.1.0",
 )
 
 # Configure CORS
@@ -37,6 +38,8 @@ app.include_router(mcq_router)
 app.include_router(auth_router)
 app.include_router(onboarding_router)
 app.include_router(youtube_router)
+app.include_router(youtube_quiz_router)  # New YouTube quiz router
+
 
 # Health check endpoint
 @app.get("/health")
@@ -48,25 +51,40 @@ async def health_check():
         "api_key_status": api_key_status
     }
 
+
 # Root endpoint
 @app.get("/")
 async def root():
     return {
-        "message": "Welcome to the SkillMaster Assessment API (Gemini Version)",
+        "message": "Welcome to the SkillMaster Assessment API",
         "docs": "/docs",
         "available_endpoints": [
+            # Standard quiz endpoints
             "/api/quiz/generate",
             "/api/quiz/submit",
             "/api/quiz/sample/{skill_area}",
             "/api/quiz/debug",
+
+            # Auth endpoints
             "/api/auth/register",
             "/api/auth/login",
             "/api/auth/user-profile",
+
+            # Onboarding endpoints
             "/api/onboarding/save",
-            "api/onboarding/status",
-            "api/onboarding/user-skills",
+            "/api/onboarding/status",
+            "/api/onboarding/user-skills",
+
+            # Existing YouTube education endpoints
+            # (Add your existing YouTube education endpoints here),
+
+            # New YouTube quiz endpoints
+            "/api/youtube-quiz/generate",
+            "/api/youtube-quiz/submit",
+            "/api/youtube-quiz/status/{quiz_id}"
         ]
     }
+
 
 # Run the application
 if __name__ == "__main__":
