@@ -83,17 +83,17 @@ def generate_skill_playlist(input_json):
         return clean_json_response(raw_text)
 
     # Helper function: generate YouTube playlist for a list of concepts
-    def generate_playlist(skill,concepts):
+    def generate_playlist(skill, concepts):
         playlist = []
         for concept in concepts:
             try:
                 # Search for a full video related to the concept (top result)
                 link = tool.run(f"{skill} {concept} course,1")
+                playlist.append({"concept": concept, "youtube_link": link})
             except Exception as e:
                 print(f"Error fetching YouTube link for {concept}: {e}")
-                link = "Not Found"
-            playlist.append({"concept": concept, "youtube_link": link})
         return playlist
+
 
     # For each skill, generate the workflow and YouTube playlist
     result = []

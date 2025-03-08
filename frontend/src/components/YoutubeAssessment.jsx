@@ -187,9 +187,9 @@ const YoutubeAssessment = () => {
     );
   }
 
-  // Render the results screen (only the score)
+  // Render the results screen (only score, solutions, and explanations)
   if (assessmentComplete) {
-    const { score } = assessmentResults;
+    const { score, question_feedback } = assessmentResults;
     return (
       <section className="relative min-h-screen flex items-center justify-center px-4 py-12 pt-28">
         <div className="absolute inset-0 overflow-hidden">
@@ -212,6 +212,22 @@ const YoutubeAssessment = () => {
                 {score.correct} out of {score.total} correct ( {score.percentage.toFixed(0)}% )
               </p>
             </div>
+            <div className="mb-6">
+              <h3 className="text-lg font-medium text-white mb-3">Solutions & Explanations</h3>
+              <div className="space-y-3">
+                {question_feedback.map((feedback, index) => (
+                  <div key={index} className="p-3 bg-gray-700/50 rounded-lg">
+                    <p className="text-sm text-gray-300">
+                      <strong>Question {feedback.question_index + 1}:</strong> {feedback.explanation}
+                    </p>
+                    <p className="text-sm text-gray-300 font-bold italic p-3">
+                      {feedback.is_correct ? 'Your answer is correct.' : 'Your answer is incorrect.'} (Correct answer: Option {feedback.correct_answer + 1})
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className='flex items-center justify-center'>
             <button 
               onClick={handleContinue} 
               className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center"
@@ -219,6 +235,7 @@ const YoutubeAssessment = () => {
               Continue to Dashboard
               <IoArrowForward className="ml-2" />
             </button>
+            </div>
           </div>
         </motion.div>
       </section>
