@@ -2,11 +2,11 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import IconsCarousel from "./IconsCarousel";
 import UserSkills from "./UserSkills";
-import AssessmentHistoryChart from './AssessmentHistoryChart';
-import SkillRadarChart from './SkillRadarChart';
-import XPProgressBar from './XPProgressBar';
-import BadgeCollection from './BadgeCollection';
-import AchievementNotification from './AchievementNotification';
+import AssessmentHistoryChart from "./AssessmentHistoryChart";
+import SkillRadarChart from "./SkillRadarChart";
+import XPProgressBar from "./XPProgressBar";
+import BadgeCollection from "./BadgeCollection";
+import AchievementNotification from "./AchievementNotification";
 // Import icons
 import {
   IoBarChartOutline,
@@ -19,7 +19,7 @@ import {
   IoBookOutline,
   IoArrowForwardOutline,
   IoPricetagsOutline,
-  IoGridOutline
+  IoGridOutline,
 } from "react-icons/io5";
 
 const Dashboard = () => {
@@ -70,85 +70,95 @@ const Dashboard = () => {
 
   const fetchUserXP = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       if (!token) return;
-      
-      const response = await fetch('http://localhost:8000/api/gamification/xp', {
-        headers: {
-          'Authorization': `Bearer ${token}`
+
+      const response = await fetch(
+        "http://localhost:8000/api/gamification/xp",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
-      });
-      
+      );
+
       if (response.ok) {
         const xpData = await response.json();
         setUserXP({
           current: xpData.current,
           level: xpData.level,
           levelThreshold: xpData.level_threshold,
-          total_earned: xpData.total_earned
+          total_earned: xpData.total_earned,
         });
-        
+
         // Update analytics with XP data
-        setAnalyticsData(prev => ({
+        setAnalyticsData((prev) => ({
           ...prev,
-          learningStreak: xpData.streak || prev.learningStreak
+          learningStreak: xpData.streak || prev.learningStreak,
         }));
       }
     } catch (error) {
-      console.error('Error fetching XP data:', error);
+      console.error("Error fetching XP data:", error);
     }
   };
 
   const fetchUserBadges = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       if (!token) return;
-      
-      const response = await fetch('http://localhost:8000/api/gamification/badges', {
-        headers: {
-          'Authorization': `Bearer ${token}`
+
+      const response = await fetch(
+        "http://localhost:8000/api/gamification/badges",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
-      });
-      
+      );
+
       if (response.ok) {
         const badgeData = await response.json();
-        setBadges(badgeData.badges.map(badge => ({
-          id: badge.id,
-          name: badge.name,
-          shortDescription: badge.short_description,
-          description: badge.description,
-          category: badge.category,
-          color: badge.color,
-          icon: badge.icon,
-          xpAwarded: badge.xp_awarded,
-          reward: badge.reward || null,
-        })));
-
-        console.log(badgeData.id);
-        
-        // Check if there are any newly earned badges since last visit
-        const newlyEarned = badgeData.badges.filter(b => 
-          b.unlocked && 
-          new Date(b.earned_date) > new Date(Date.now() - 24*60*60*1000)
-        );
-        
-        if (newlyEarned.length > 0) {
-          // Queue notifications for newly earned badges
-          setAchievementQueue(newlyEarned.map(badge => ({
+        setBadges(
+          badgeData.badges.map((badge) => ({
             id: badge.id,
             name: badge.name,
             shortDescription: badge.short_description,
+            description: badge.description,
+            category: badge.category,
             color: badge.color,
             icon: badge.icon,
-            xpAwarded: badge.xp_awarded
-          })));
+            xpAwarded: badge.xp_awarded,
+            reward: badge.reward || null,
+          }))
+        );
+
+        console.log(badgeData.id);
+
+        // Check if there are any newly earned badges since last visit
+        const newlyEarned = badgeData.badges.filter(
+          (b) =>
+            b.unlocked &&
+            new Date(b.earned_date) > new Date(Date.now() - 24 * 60 * 60 * 1000)
+        );
+
+        if (newlyEarned.length > 0) {
+          // Queue notifications for newly earned badges
+          setAchievementQueue(
+            newlyEarned.map((badge) => ({
+              id: badge.id,
+              name: badge.name,
+              shortDescription: badge.short_description,
+              color: badge.color,
+              icon: badge.icon,
+              xpAwarded: badge.xp_awarded,
+            }))
+          );
         }
       }
     } catch (error) {
-      console.error('Error fetching badge data:', error);
+      console.error("Error fetching badge data:", error);
     }
   };
-
 
   // Simulate unlocking a new achievement (for demo purposes)
   useEffect(() => {
@@ -163,11 +173,11 @@ const Dashboard = () => {
           shortDescription: "Complete 3 modules in a single day",
           color: "green",
           icon: "⚡",
-          xpAwarded: 75
+          xpAwarded: 75,
         });
       }
     }, 3000);
-    
+
     return () => clearTimeout(timer);
   }, []); // Remove newAchievement dependency to prevent loop
 
@@ -175,17 +185,17 @@ const Dashboard = () => {
     if (achievementQueue.length > 0 && !newAchievement) {
       // Display the first achievement in the queue
       setNewAchievement(achievementQueue[0]);
-      
+
       // Remove it from the queue
-      setAchievementQueue(prev => prev.slice(1));
+      setAchievementQueue((prev) => prev.slice(1));
     }
   }, [achievementQueue, newAchievement]);
-  
+
   // Handle achievement notification close
   const handleAchievementClose = () => {
     setNewAchievement(null);
     // The next achievement will be shown on next render due to the effect above
-  }
+  };
 
   // Function to handle retaking the assessment
   const handleRetakeAssessment = () => {
@@ -248,6 +258,53 @@ const Dashboard = () => {
       console.error("Error fetching assessment history:", error);
     }
   };
+
+  // Add this state and fetching function
+  const [loginActivity, setLoginActivity] = useState([
+    { day: "S", count: 0, percentage: 0 },
+    { day: "M", count: 0, percentage: 0 },
+    { day: "T", count: 0, percentage: 0 },
+    { day: "W", count: 0, percentage: 0 },
+    { day: "T", count: 0, percentage: 0 },
+    { day: "F", count: 0, percentage: 0 },
+    { day: "S", count: 0, percentage: 0 },
+  ]);
+
+  // Add this function to fetch login activity
+  const fetchLoginActivity = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const response = await fetch(
+        "http://localhost:8000/api/auth/login-activity",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setLoginActivity(
+          data.weekly_activity.map((item) => ({
+            day: item.day.charAt(0), // Just use first letter
+            count: item.count,
+            percentage: item.percentage,
+          }))
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching login activity:", error);
+    }
+  };
+
+  // Add this to your useEffect for data fetching
+  useEffect(() => {
+    // Other fetching code...
+    fetchLoginActivity();
+  }, []);
 
   // Calculate progress between assessments
   const calculateAssessmentProgress = (assessments) => {
@@ -434,16 +491,16 @@ const Dashboard = () => {
           </button>
 
           {showBadgeCollection && (
-            <BadgeCollection 
-              badges={badges} 
-              onClose={() => setShowBadgeCollection(false)} 
+            <BadgeCollection
+              badges={badges}
+              onClose={() => setShowBadgeCollection(false)}
             />
           )}
 
           <div className="mt-4 mb-8">
-            <XPProgressBar 
-              currentXP={userXP.current} 
-              levelThreshold={userXP.levelThreshold} 
+            <XPProgressBar
+              currentXP={userXP.current}
+              levelThreshold={userXP.levelThreshold}
               level={userXP.level}
             />
           </div>
@@ -536,25 +593,37 @@ const Dashboard = () => {
               <div className="bg-gray-700/50 rounded-xl p-6">
                 <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
                   <IoCalendarOutline className="mr-2 text-purple-400" />
-                  Weekly Learning Activity
+                  Weekly Login Activity
                 </h2>
-                <div className="h-32 flex items-end justify-between">
-                  {analyticsData.weeklyActivity.map((activity, index) => (
+                <div className="h-36 flex items-end justify-between">
+                  {loginActivity.map((activity, index) => (
                     <div
                       key={index}
                       className="flex flex-col items-center w-full"
                     >
                       <div className="relative w-full flex justify-center">
                         <div
-                          className="w-6 bg-gradient-to-t from-purple-600 to-blue-500 rounded-t-sm"
-                          style={{ height: `${activity}%` }}
+                          className={`w-6 ${
+                            activity.count > 0
+                              ? "bg-gradient-to-t from-purple-600 to-blue-500"
+                              : "bg-gray-600/30"
+                          } rounded-t-sm`}
+                          style={{ height: `${activity.percentage}%` }}
                         ></div>
+                        {activity.count > 0 && (
+                          <div className="absolute -top-6 text-xs font-medium text-blue-300">
+                            {activity.count}
+                          </div>
+                        )}
                       </div>
                       <div className="text-xs text-gray-400 mt-2">
-                        {["S", "M", "T", "W", "T", "F", "S"][index]}
+                        {activity.day}
                       </div>
                     </div>
                   ))}
+                </div>
+                <div className="text-xs text-gray-400 mt-4 text-center">
+                  Recent login: {userData.lastActive || "Today"}
                 </div>
               </div>
 
@@ -682,20 +751,29 @@ const Dashboard = () => {
                 <IoBarChartOutline className="mr-2 text-blue-400" />
                 Assessment Progress Over Time
               </h2>
-              
+
               <div className="w-full overflow-hidden">
                 <AssessmentHistoryChart assessmentHistory={assessmentHistory} />
               </div>
-              
+
               <div className="mt-4 text-center">
                 <p className="text-sm text-gray-400">
                   {assessmentHistory.length} assessments taken
-                  {assessmentHistory.length > 1 && 
-                    ` · First assessment: ${new Date(assessmentHistory[assessmentHistory.length-1].timestamp).toLocaleDateString()}`}
+                  {assessmentHistory.length > 1 &&
+                    ` · First assessment: ${new Date(
+                      assessmentHistory[assessmentHistory.length - 1].timestamp
+                    ).toLocaleDateString()}`}
                 </p>
                 {assessmentHistory.length >= 3 && (
                   <p className="text-sm text-gray-400 mt-1">
-                    Average score: {(assessmentHistory.reduce((sum, a) => sum + a.score.percentage, 0) / assessmentHistory.length).toFixed(1)}%
+                    Average score:{" "}
+                    {(
+                      assessmentHistory.reduce(
+                        (sum, a) => sum + a.score.percentage,
+                        0
+                      ) / assessmentHistory.length
+                    ).toFixed(1)}
+                    %
                   </p>
                 )}
               </div>
@@ -716,70 +794,110 @@ const Dashboard = () => {
                   Comparing your most recent two assessments
                 </p>
               </div>
-              
+
               {/* You could add another visualization or content card here */}
               <div className="bg-gray-700/50 rounded-xl p-6">
                 <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
                   <IoBarChartOutline className="mr-2 text-green-400" />
                   Assessment Statistics
                 </h2>
-                
+
                 <div className="space-y-4">
                   <div className="bg-gray-800/50 p-4 rounded-lg">
-                    <h3 className="text-white font-medium mb-2">Assessment Summary</h3>
+                    <h3 className="text-white font-medium mb-2">
+                      Assessment Summary
+                    </h3>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <p className="text-xs text-gray-400">Total Assessments</p>
-                        <p className="text-xl text-white font-semibold">{assessmentHistory.length}</p>
+                        <p className="text-xs text-gray-400">
+                          Total Assessments
+                        </p>
+                        <p className="text-xl text-white font-semibold">
+                          {assessmentHistory.length}
+                        </p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-400">Best Score</p>
                         <p className="text-xl text-green-400 font-semibold">
-                          {Math.max(...assessmentHistory.map(a => a.score.percentage)).toFixed(0)}%
+                          {Math.max(
+                            ...assessmentHistory.map((a) => a.score.percentage)
+                          ).toFixed(0)}
+                          %
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-400">Avg. Time Between</p>
+                        <p className="text-xs text-gray-400">
+                          Avg. Time Between
+                        </p>
                         <p className="text-xl text-white font-semibold">
-                          {assessmentHistory.length >= 3 ? 
-                            Math.round(
-                              (new Date(assessmentHistory[0].timestamp) - new Date(assessmentHistory[assessmentHistory.length-1].timestamp)) / 
-                              (1000 * 60 * 60 * 24 * (assessmentHistory.length - 1))
-                            ) + "d" : 
-                            "N/A"}
+                          {assessmentHistory.length >= 3
+                            ? Math.round(
+                                (new Date(assessmentHistory[0].timestamp) -
+                                  new Date(
+                                    assessmentHistory[
+                                      assessmentHistory.length - 1
+                                    ].timestamp
+                                  )) /
+                                  (1000 *
+                                    60 *
+                                    60 *
+                                    24 *
+                                    (assessmentHistory.length - 1))
+                              ) + "d"
+                            : "N/A"}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-400">Improvement</p>
-                        <p className={`text-xl font-semibold ${
-                          assessmentHistory[0].score.percentage > assessmentHistory[assessmentHistory.length-1].score.percentage ?
-                          "text-green-400" : "text-red-400"
-                        }`}>
-                          {(assessmentHistory[0].score.percentage - assessmentHistory[assessmentHistory.length-1].score.percentage).toFixed(1)}%
+                        <p
+                          className={`text-xl font-semibold ${
+                            assessmentHistory[0].score.percentage >
+                            assessmentHistory[assessmentHistory.length - 1]
+                              .score.percentage
+                              ? "text-green-400"
+                              : "text-red-400"
+                          }`}
+                        >
+                          {(
+                            assessmentHistory[0].score.percentage -
+                            assessmentHistory[assessmentHistory.length - 1]
+                              .score.percentage
+                          ).toFixed(1)}
+                          %
                         </p>
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="bg-gray-800/50 p-4 rounded-lg">
-                    <h3 className="text-white font-medium mb-3">Level Distribution</h3>
+                    <h3 className="text-white font-medium mb-3">
+                      Level Distribution
+                    </h3>
                     <div className="flex items-center space-x-2">
-                      {["beginner", "intermediate", "advanced"].map(level => {
-                        const count = assessmentHistory.filter(a => a.assessed_level === level).length;
-                        const percentage = (count / assessmentHistory.length) * 100;
-                        
+                      {["beginner", "intermediate", "advanced"].map((level) => {
+                        const count = assessmentHistory.filter(
+                          (a) => a.assessed_level === level
+                        ).length;
+                        const percentage =
+                          (count / assessmentHistory.length) * 100;
+
                         return (
                           <div key={level} className="flex-1">
                             <div className="flex justify-between text-xs mb-1">
-                              <span className="text-gray-400 capitalize">{level}</span>
+                              <span className="text-gray-400 capitalize">
+                                {level}
+                              </span>
                               <span className="text-gray-300">{count}</span>
                             </div>
                             <div className="w-full bg-gray-700 rounded-full h-1.5">
-                              <div 
+                              <div
                                 className={`h-1.5 rounded-full ${
-                                  level === "beginner" ? "bg-green-500" : 
-                                  level === "intermediate" ? "bg-blue-500" : "bg-purple-500"
-                                }`} 
+                                  level === "beginner"
+                                    ? "bg-green-500"
+                                    : level === "intermediate"
+                                    ? "bg-blue-500"
+                                    : "bg-purple-500"
+                                }`}
                                 style={{ width: `${percentage}%` }}
                               ></div>
                             </div>
@@ -888,9 +1006,9 @@ const Dashboard = () => {
           </div>
 
           {newAchievement && (
-            <AchievementNotification 
-              achievement={newAchievement} 
-              onClose={handleAchievementClose} 
+            <AchievementNotification
+              achievement={newAchievement}
+              onClose={handleAchievementClose}
             />
           )}
         </div>

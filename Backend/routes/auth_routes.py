@@ -257,3 +257,59 @@ async def update_assessment_status(
         
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid authentication token")
+    
+@router.get("/login-activity")
+async def get_login_activity(authorization: str = Header(None)):
+    """Get user's login activity for the past week"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.split(" ")[1]
+    
+    try:
+        # Decode the token to get user_id
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid authentication token")
+        
+        # Get login history for the past week
+        db = get_db()
+        
+        # Get current date and date from 7 days ago
+        today = datetime.utcnow()
+        past_week = today - timedelta(days=7)
+        
+        # Find login records for this user in the past week
+        login_logs = list(db.login_logs.find({
+            "user_id": ObjectId(user_id),
+            "login_time": {"$gte": past_week}
+        }).sort("login_time", -1))
+        
+        # Format the response
+        days_of_week = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        activity_by_day = {day: 0 for day in days_of_week}
+        
+        # Count logins by day of week
+        for log in login_logs:
+            day_of_week = days_of_week[log["login_time"].weekday()]
+            activity_by_day[day_of_week] += 1
+        
+        # Convert to array format expected by the frontend
+        weekly_activity = []
+        for day in ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]:
+            # Convert raw count to a percentage (max 100%)
+            percentage = min(100, activity_by_day[day] * 20)  # Each login = 20% of bar height
+            weekly_activity.append({
+                "day": day,
+                "count": activity_by_day[day],
+                "percentage": percentage
+            })
+        
+        return {"weekly_activity": weekly_activity}
+        
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid authentication token")
+    
+    
