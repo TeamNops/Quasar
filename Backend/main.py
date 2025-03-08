@@ -9,6 +9,8 @@ from routes.onboarding_routes import router as onboarding_router
 from routes.youtube_education import router as youtube_router
 from routes.youtube_quiz_routes import router as youtube_quiz_router
 from routes.gamification_routes import router as gamification_router  # Add this line
+from routes.deepsearch import router as deepsearch_router
+from routes.rag_route import router as rag_router
 
 # Load environment variables from .env file
 load_dotenv()
@@ -41,6 +43,8 @@ app.include_router(onboarding_router)
 app.include_router(youtube_router)
 app.include_router(youtube_quiz_router)
 app.include_router(gamification_router)  # Add this line
+app.include_router(deepsearch_router)
+app.include_router(rag_router)
 
 # Health check endpoint
 @app.get("/health")

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import IconsCarousel from './IconsCarousel';
+import DeepSearch from './DeepSearch'; // Import the DeepSearch component
 
 // Import icons
 import { 
@@ -12,7 +13,8 @@ import {
   IoChevronDown,
   IoChevronUp,
   IoRocketOutline,
-  IoLogoYoutube
+  IoLogoYoutube,
+  IoSearchOutline
 } from 'react-icons/io5';
 
 const SkillAssessmentRecommendations = () => {
@@ -21,6 +23,7 @@ const SkillAssessmentRecommendations = () => {
   const [error, setError] = useState(null);
   const [playlists, setPlaylists] = useState([]);
   const [expandedSkill, setExpandedSkill] = useState(null);
+  const [viewMode, setViewMode] = useState('videos'); // 'videos' or 'resources'
 
   // Animation variants
   const containerVariants = {
@@ -89,7 +92,7 @@ const SkillAssessmentRecommendations = () => {
         setIsLoading(false);
       }
     };
-  
+    
     // Run this effect only once on mount
     fetchYouTubeRecommendations();
   }, []); // <-- empty dependency array prevents re-calling
@@ -169,14 +172,42 @@ const SkillAssessmentRecommendations = () => {
     );
   }
 
+  // If we're in resources mode, render the DeepSearch component directly
+  if (viewMode === 'resources') {
+    return (
+      <>
+        <div className="fixed top-0 left-0 right-0 z-20 bg-gray-900/80 backdrop-blur-sm p-4 flex justify-center pt-28 pb-6">
+          <div className="bg-gray-800/80 rounded-lg p-1 flex">
+            <button 
+              className="px-4 py-2 rounded-md flex items-center text-gray-300 hover:text-white"
+              onClick={() => setViewMode('videos')}
+            >
+              <IoLogoYoutube className="mr-2" />
+              Video Tutorials
+            </button>
+            <button 
+              className="px-4 py-2 rounded-md flex items-center bg-purple-600 text-white"
+              onClick={() => setViewMode('resources')}
+            >
+              <IoSearchOutline className="mr-2" />
+              Deep Resources
+            </button>
+          </div>
+        </div>
+
+        <DeepSearch />
+      </>
+    );
+  }
+
   return (
-    <section className="relative min-h-screen flex items-center justify-center px-4 py-12 pt-28">
+    <section className="relative min-h-screen px-4 py-12 pt-28">
       <div className="absolute inset-0 overflow-hidden">
         <IconsCarousel backgroundColor="rgba(17, 24, 39, 0.8)" iconColor="gray-500/30" />
         <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-gray-800/90" />
       </div>
       <motion.div 
-        className="w-full max-w-4xl relative z-10"
+        className="w-full max-w-5xl mx-auto relative z-10"
         variants={containerVariants}
         initial="initial"
         animate="animate"
@@ -186,10 +217,31 @@ const SkillAssessmentRecommendations = () => {
             <IoSchoolOutline className="mx-auto text-blue-500 text-5xl mb-4" />
             <h2 className="text-2xl font-bold text-white mb-2">Your Personalized Learning Path</h2>
             <p className="text-gray-300 max-w-2xl mx-auto">
-              Based on your assessment, we've created custom playlists to help you learn and improve.
-              Click on any skill to explore recommended videos.
+              Based on your assessment, we've created custom resources to help you learn and improve.
             </p>
           </div>
+
+          {/* Resource Type Toggle */}
+          <div className="flex justify-center mb-8">
+            <div className="bg-gray-700/50 rounded-lg p-1 flex">
+              <button 
+                className="px-4 py-2 rounded-md flex items-center bg-blue-600 text-white"
+                onClick={() => setViewMode('videos')}
+              >
+                <IoLogoYoutube className="mr-2" />
+                Video Tutorials
+              </button>
+              <button 
+                className="px-4 py-2 rounded-md flex items-center text-gray-300 hover:text-white"
+                onClick={() => setViewMode('resources')}
+              >
+                <IoSearchOutline className="mr-2" />
+                Deep Resources
+              </button>
+            </div>
+          </div>
+
+          {/* YouTube Recommendations */}
           <div className="space-y-6 mb-8">
             {playlists.length > 0 ? (
               playlists.map((skillPlaylist, skillIndex) => (
@@ -290,6 +342,7 @@ const SkillAssessmentRecommendations = () => {
               </div>
             )}
           </div>
+          
           <div className="flex justify-center">
             <button 
               className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center"
