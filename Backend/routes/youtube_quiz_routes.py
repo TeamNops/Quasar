@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 import uuid
 
-from functions.youtube_quiz_functions import YouTubeQuizGenerator, extract_video_id
+from functions.youtube_quiz_functions import YouTubeQuizGenerator, extract_video_id, get_transcript, extract_core_topics
 
 # Ensure environment variables are loaded
 load_dotenv()
@@ -27,6 +27,14 @@ class YouTubeQuizRequest(BaseModel):
     num_questions: int = 5
     difficulty: str = "intermediate"
     languages: List[str] = ["en"]
+
+
+class YouTubeTopicsRequest(BaseModel):
+    """Request model for extracting core topics from a YouTube video"""
+    video_url: HttpUrl
+    languages: List[str] = ["en"]
+    model_name: str = "gemini-1.5-flash"
+    include_transcript: bool = False
 
 
 class QuizSubmission(BaseModel):
@@ -182,3 +190,135 @@ async def get_quiz_status(quiz_id: str):
         return {"status": "available", "quiz_id": quiz_id}
     else:
         return {"status": "not_found", "quiz_id": quiz_id}
+
+
+# New route for core topics extraction
+@router.post("/topics", response_model=Dict[str, Any])
+async def extract_youtube_topics(
+        params: YouTubeTopicsRequest,
+        quiz_gen=Depends(get_quiz_generator)
+):
+    """
+    Extract core topics with timestamp ranges from a YouTube video
+    """
+    try:
+        # Extract video_id first as a quick validation
+        video_id = extract_video_id(str(params.video_url))
+        if not video_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid YouTube URL"
+            )
+
+        # Get transcript
+        transcriptions = get_transcript(video_id, params.languages)
+
+        # Extract core topics with timestamp ranges
+        result = quiz_gen.extract_topics_from_transcript(
+            transcriptions=transcriptions,
+            model_name=params.model_name
+        )
+
+        # Build response
+        response = {
+            "success": True,
+            "video_id": video_id,
+            "video_url": str(params.video_url),
+            "core_topics": result.get("core_topics", []),
+            "summary": result.get("summary", "")
+        }
+
+        # Include transcript if requested
+        if params.include_transcript:
+            response["transcriptions"] = transcriptions
+
+        return response
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to extract topics: {str(e)}"
+        )
+
+
+@router.post("/comprehensive", response_model=Dict[str, Any])
+async def generate_comprehensive_content(
+        params: YouTubeQuizRequest,
+        background_tasks: BackgroundTasks,
+        quiz_gen=Depends(get_quiz_generator)
+):
+    """
+    Generate comprehensive content from a YouTube video:
+    - Transcript
+    - Core topics with timestamp ranges
+    - Brief summary
+    - Quiz (optional)
+    """
+    try:
+        # Generate a unique ID for this content
+        content_id = str(uuid.uuid4())
+
+        # Extract video_id first as a quick validation
+        video_id = extract_video_id(str(params.video_url))
+        if not video_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid YouTube URL"
+            )
+
+        # Get transcript
+        transcriptions = get_transcript(video_id, params.languages)
+
+        # Extract core topics with timestamp ranges
+        topics_result = quiz_gen.extract_topics_from_transcript(
+            transcriptions=transcriptions
+        )
+
+        # Generate quiz
+        transcript_text = " ".join([entry["description"] for entry in transcriptions])
+        quiz_result = quiz_gen.generate_quiz_from_transcript(
+            transcript_text,
+            num_questions=params.num_questions,
+            difficulty=params.difficulty
+        )
+
+        # Combine everything
+        result = {
+            "video_id": video_id,
+            "video_url": str(params.video_url),
+            "transcriptions": transcriptions,
+            "core_topics": topics_result.get("core_topics", []),
+            "summary": topics_result.get("summary", ""),
+            "questions": quiz_result.get("questions", [])
+        }
+
+        # Add to cache
+        youtube_quiz_cache[content_id] = result
+
+        # Create a user-facing version without quiz answers
+        user_content = {
+            "content_id": content_id,
+            "video_id": video_id,
+            "video_url": str(params.video_url),
+            "core_topics": topics_result.get("core_topics", []),
+            "summary": topics_result.get("summary", "")
+        }
+
+        # Add quiz without answers if it exists
+        if "questions" in quiz_result:
+            user_content["quiz"] = [
+                {
+                    "question": q["question"],
+                    "options": q["options"],
+                    "difficulty": q.get("difficulty", params.difficulty)
+                }
+                for q in quiz_result.get("questions", [])
+            ]
+
+        return user_content
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate comprehensive content: {str(e)}"
+        )

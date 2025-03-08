@@ -4,6 +4,7 @@ from typing import Dict, List, Any, Optional
 import google.generativeai as genai
 from pydantic import BaseModel, Field
 import re
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from youtube_transcript_api import YouTubeTranscriptApi
 
@@ -98,6 +99,8 @@ def get_transcript(video_id, languages=['en']):
 
             transcriptions.append({
                 "timestamp": timestamp,
+                "start_seconds": start_time,
+                "duration": entry.get('duration', 0),
                 "description": entry['text']
             })
 
@@ -107,8 +110,160 @@ def get_transcript(video_id, languages=['en']):
         raise Exception(f"Error retrieving transcript: {str(e)}")
 
 
+def combine_transcriptions(transcriptions: List[Dict[str, str]]) -> str:
+    """
+    Combine transcription segments into a single text
+
+    Args:
+        transcriptions: List of transcript entries with 'timestamp' and 'description' keys
+
+    Returns:
+        str: Combined transcript text
+    """
+    return " ".join([entry["description"] for entry in transcriptions])
+
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+def extract_core_topics(transcriptions: List[Dict[str, Any]],
+                        model_name: str = 'gemini-1.5-flash',
+                        max_transcript_length: int = 15000) -> Dict[str, Any]:
+    """
+    Extract core topics with timestamp ranges from a list of transcription segments
+
+    Args:
+        transcriptions: List of transcript entries with 'timestamp', 'start_seconds', 'duration', and 'description' keys
+        model_name: Gemini model to use
+        max_transcript_length: Maximum characters of transcript to process
+
+    Returns:
+        dict: Dictionary containing 'core_topics' and 'summary'
+    """
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    if not GOOGLE_API_KEY:
+        return {
+            "core_topics": [],
+            "summary": "ERROR: Google API key not found. Unable to extract topics."
+        }
+
+    try:
+        # Configure Gemini if not already configured
+        try:
+            genai.configure(api_key=GOOGLE_API_KEY)
+        except:
+            # Already configured, continue
+            pass
+
+        # Combine transcriptions into a single text
+        full_transcript = combine_transcriptions(transcriptions)
+
+        # Truncate if too long to avoid token limits
+        if len(full_transcript) > max_transcript_length:
+            full_transcript = full_transcript[:max_transcript_length] + "..."
+            print(f"Transcript truncated to {max_transcript_length} characters for topic extraction")
+
+        # Prepare transcript with timestamps
+        timestamped_transcript = ""
+        for i, entry in enumerate(transcriptions):
+            if i < 100 or i % 5 == 0:  # Include every 5th entry to reduce size but maintain context
+                timestamped_transcript += f"[{entry['timestamp']}] {entry['description']}\n"
+
+        # If we have too much text, truncate
+        if len(timestamped_transcript) > max_transcript_length:
+            timestamped_transcript = timestamped_transcript[:max_transcript_length] + "..."
+
+        model = genai.GenerativeModel(model_name)
+
+        # Configure generation parameters
+        generation_config = {
+            "temperature": 0.2,  # Lower temperature for more factual output
+            "top_p": 0.95,
+            "top_k": 64,
+            "max_output_tokens": 4096,  # Allow for reasonably long output
+        }
+
+        # Extract core topics with timestamp ranges
+        topics_prompt = f"""
+        You are an expert at analyzing video transcripts and extracting core topics with timestamp ranges.
+
+        Below is a transcript from a video with timestamps in the format [HH:MM:SS]. Extract the 5-10 main core topics discussed in this video.
+
+        For each core topic:
+        1. Identify a clear, concise name for the topic (a few words only)
+        2. Determine the approximate timestamp range where this topic is discussed (start time and end time)
+        3. Write a very brief description (1-2 sentences maximum)
+
+        Format your response as a JSON array with objects containing:
+        - topic: the core topic name
+        - start_time: the timestamp when discussion of this topic begins
+        - end_time: the timestamp when discussion of this topic ends
+        - description: brief description of what's covered in this topic
+
+        Transcript:
+        ---
+        {timestamped_transcript}
+        ---
+
+        Return ONLY the JSON array with no additional text, markdown formatting, or code blocks.
+        """
+
+        topics_response = model.generate_content(
+            topics_prompt,
+            generation_config=generation_config
+        )
+        topics_text = topics_response.text.strip()
+
+        # Extract JSON content
+        if "```json" in topics_text:
+            json_content = topics_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in topics_text:
+            json_content = topics_text.split("```")[1].strip()
+        else:
+            json_content = topics_text
+
+        # Parse the JSON response
+        try:
+            core_topics = json.loads(json_content)
+        except json.JSONDecodeError as e:
+            print(f"JSON decoding error: {str(e)}")
+            core_topics = []
+
+        # Generate a brief summary
+        summary_prompt = f"""
+        You are an expert at creating concise summaries from transcripts.
+
+        Below is a transcript from a video. Create a concise summary (1-2 paragraphs maximum) that captures:
+        1. The main topic and purpose of the content
+        2. The key points or arguments made
+
+        Transcript:
+        ---
+        {full_transcript[:8000]}  # Limited to 8000 chars to avoid token limits
+        ---
+
+        Summary:
+        """
+
+        summary_response = model.generate_content(
+            summary_prompt,
+            generation_config=generation_config
+        )
+        summary = summary_response.text.strip()
+
+        return {
+            "core_topics": core_topics,
+            "summary": summary
+        }
+
+    except Exception as e:
+        print(f"Error extracting core topics: {e}")
+        return {
+            "core_topics": [],
+            "summary": f"ERROR: Failed to extract core topics. {str(e)}"
+        }
+
+
 class YouTubeQuizGenerator:
-    """Class to generate quizzes based on YouTube video content"""
+    """Class to generate quizzes, extract topics, and summaries based on YouTube video content"""
 
     def __init__(self, api_key):
         """Initialize the quiz generator with API key"""
@@ -161,6 +316,32 @@ class YouTubeQuizGenerator:
         # For now, we'll use the full text if it's reasonable in length
         # This is where you might add chunking logic for very long videos
         return full_text
+
+    def extract_topics_from_transcript(self, transcriptions, model_name="gemini-1.5-flash"):
+        """
+        Extract core topics with timestamp ranges from transcript.
+
+        Args:
+            transcriptions (list): List of transcript entries
+            model_name (str): Model to use for topic extraction
+
+        Returns:
+            dict: Extracted core topics with timestamp ranges and a brief summary
+        """
+        try:
+            # Use the extract_core_topics function
+            result = extract_core_topics(
+                transcriptions=transcriptions,
+                model_name=model_name
+            )
+
+            return result
+        except Exception as e:
+            print(f"Error extracting core topics: {str(e)}")
+            return {
+                "core_topics": [],
+                "summary": f"Error extracting core topics: {str(e)}"
+            }
 
     def generate_quiz_from_transcript(self, transcript_text, num_questions=5, difficulty="intermediate"):
         """
