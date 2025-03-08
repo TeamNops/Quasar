@@ -120,15 +120,11 @@ const Dashboard = () => {
           category: badge.category,
           color: badge.color,
           icon: badge.icon,
-          unlocked: badge.unlocked,
-          earnedDate: badge.earned_date,
           xpAwarded: badge.xp_awarded,
           reward: badge.reward || null,
-          progress: badge.progress ? {
-            current: badge.progress.current,
-            required: badge.progress.required
-          } : null
         })));
+
+        console.log(badgeData.id);
         
         // Check if there are any newly earned badges since last visit
         const newlyEarned = badgeData.badges.filter(b => 
