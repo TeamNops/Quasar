@@ -41,9 +41,7 @@ const SkillAssessmentRecommendations = () => {
     hover: { scale: 1.02 }
   };
 
-// Inside the useEffect hook in SkillAssessmentRecommendations.jsx
-
-useEffect(() => {
+  useEffect(() => {
     const fetchYouTubeRecommendations = async () => {
       try {
         // Check if assessment has been completed
@@ -92,28 +90,39 @@ useEffect(() => {
       }
     };
   
+    // Run this effect only once on mount
     fetchYouTubeRecommendations();
-  }, [navigate]);
+  }, []); // <-- empty dependency array prevents re-calling
 
   // Toggle expanded skill
   const toggleSkill = (skillIndex) => {
-    if (expandedSkill === skillIndex) {
-      setExpandedSkill(null);
-    } else {
-      setExpandedSkill(skillIndex);
-    }
+    setExpandedSkill(expandedSkill === skillIndex ? null : skillIndex);
   };
 
-  // Extract video ID from YouTube URL
+  const normalizeYoutubeLink = (link) => {
+    if (link.startsWith('[') && link.endsWith(']')) {
+      const cleaned = link.slice(1, -1).replace(/['"]/g, "");
+      return cleaned.split(',')[0].trim();
+    }
+    return link;
+  };
+
+  // Updated getVideoId function that normalizes the URL first
   const getVideoId = (url) => {
+    const normalizedUrl = normalizeYoutubeLink(url);
     const regex = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-    const match = url.match(regex);
+    const match = normalizedUrl.match(regex);
     return match ? match[1] : null;
   };
 
   // Handle continue to dashboard
   const handleContinue = () => {
     navigate('/dashboard');
+  };
+
+  // Handle "Give Test" button click
+  const handleGiveTest = (youtubeLink) => {
+    navigate('/youtube-assesment', { state: { youtubeUrl: youtubeLink } });
   };
 
   // Loading state
@@ -124,7 +133,6 @@ useEffect(() => {
           <IconsCarousel backgroundColor="rgba(17, 24, 39, 0.8)" iconColor="gray-500/30" />
           <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-gray-800/90" />
         </div>
-        
         <div className="w-full max-w-3xl relative z-10 bg-gray-800/60 backdrop-blur-lg border border-gray-700/50 rounded-2xl p-8 shadow-xl">
           <div className="flex flex-col items-center justify-center">
             <IoHourglassOutline className="animate-pulse text-blue-500 text-5xl mb-4" />
@@ -144,7 +152,6 @@ useEffect(() => {
           <IconsCarousel backgroundColor="rgba(17, 24, 39, 0.8)" iconColor="gray-500/30" />
           <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-gray-800/90" />
         </div>
-        
         <div className="w-full max-w-3xl relative z-10 bg-gray-800/60 backdrop-blur-lg border border-gray-700/50 rounded-2xl p-8 shadow-xl">
           <div className="flex flex-col items-center justify-center">
             <div className="text-red-500 text-5xl mb-4">⚠️</div>
@@ -168,7 +175,6 @@ useEffect(() => {
         <IconsCarousel backgroundColor="rgba(17, 24, 39, 0.8)" iconColor="gray-500/30" />
         <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-gray-800/90" />
       </div>
-      
       <motion.div 
         className="w-full max-w-4xl relative z-10"
         variants={containerVariants}
@@ -184,7 +190,6 @@ useEffect(() => {
               Click on any skill to explore recommended videos.
             </p>
           </div>
-          
           <div className="space-y-6 mb-8">
             {playlists.length > 0 ? (
               playlists.map((skillPlaylist, skillIndex) => (
@@ -211,7 +216,6 @@ useEffect(() => {
                       <IoChevronDown className="text-blue-400 text-xl" />
                     )}
                   </div>
-                  
                   {expandedSkill === skillIndex && (
                     <div className="p-4 space-y-4 bg-gray-800/70">
                       {skillPlaylist.playlist.map((item, index) => {
@@ -227,32 +231,51 @@ useEffect(() => {
                             <div className="p-3 bg-gray-700/30 border-b border-gray-600/50">
                               <h4 className="font-medium text-white">{item.concept}</h4>
                             </div>
-                            
                             {videoId ? (
-                              <div className="aspect-video w-full">
-                                <iframe 
-                                  width="100%" 
-                                  height="100%" 
-                                  src={`https://www.youtube.com/embed/${videoId}`} 
-                                  title={item.concept}
-                                  frameBorder="0" 
-                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                  allowFullScreen
-                                  loading="lazy"
-                                ></iframe>
-                              </div>
+                              <>
+                                <div className="aspect-video w-full">
+                                  <iframe 
+                                    width="100%" 
+                                    height="100%" 
+                                    src={`https://www.youtube.com/embed/${videoId}`} 
+                                    title={item.concept}
+                                    frameBorder="0" 
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                    allowFullScreen
+                                    loading="lazy"
+                                  ></iframe>
+                                </div>
+                                <div className="flex justify-center p-2">
+                                  <button
+                                    onClick={() => handleGiveTest(item.youtube_link)}
+                                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
+                                  >
+                                    Give Test
+                                  </button>
+                                </div>
+                              </>
                             ) : (
-                              <div className="p-4 text-center bg-gray-700/10">
-                                <a 
-                                  href={item.youtube_link} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center text-blue-400 hover:text-blue-300 transition-colors"
-                                >
-                                  <IoLogoYoutube className="mr-2" />
-                                  Watch on YouTube
-                                </a>
-                              </div>
+                              <>
+                                <div className="p-4 text-center bg-gray-700/10">
+                                  <a 
+                                    href={item.youtube_link} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center text-blue-400 hover:text-blue-300 transition-colors"
+                                  >
+                                    <IoLogoYoutube className="mr-2" />
+                                    Watch on YouTube
+                                  </a>
+                                </div>
+                                <div className="flex justify-center p-2">
+                                  <button
+                                    onClick={() => handleGiveTest(item.youtube_link)}
+                                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
+                                  >
+                                    Give Test
+                                  </button>
+                                </div>
+                              </>
                             )}
                           </motion.div>
                         );
@@ -267,7 +290,6 @@ useEffect(() => {
               </div>
             )}
           </div>
-          
           <div className="flex justify-center">
             <button 
               className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center"
