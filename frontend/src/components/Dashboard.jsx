@@ -482,6 +482,7 @@ const Dashboard = () => {
             </div>
           </div>
 
+          <div className = "flex justify-start space-x-2">
           <button
             onClick={() => setShowBadgeCollection(true)}
             className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors mt-6"
@@ -490,11 +491,21 @@ const Dashboard = () => {
             View Badge Collection
           </button>
 
+          <a
+              href="http://localhost:8502/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors mt-6"
+          >
+            Try out coding!
+          </a>
+          </div>
+
           {showBadgeCollection && (
-            <BadgeCollection
-              badges={badges}
-              onClose={() => setShowBadgeCollection(false)}
-            />
+              <BadgeCollection
+                  badges={badges}
+                  onClose={() => setShowBadgeCollection(false)}
+              />
           )}
 
           <div className="mt-4 mb-8">
