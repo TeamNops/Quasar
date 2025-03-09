@@ -5,6 +5,7 @@ import re
 from dotenv import load_dotenv
 import google.generativeai as genai
 from langchain_community.tools import TavilySearchResults
+from langchain_community.utilities import GoogleSerperAPIWrapper
 from duckduckgo_search import DDGS  # Install via `pip install duckduckgo-search`
 from duckduckgo_search import DDGS
 from duckduckgo_search.exceptions import DuckDuckGoSearchException
@@ -20,6 +21,12 @@ model_id = "gemini-2.0-flash"
 google_search_tool = Tool(
     google_search=GoogleSearch()
 )
+def llm_serper(query):
+    search = GoogleSerperAPIWrapper(serper_api_key="5abd612e50256b99688f9eded0b9583685c815cf")
+    results = search.results(query)
+    organic_results = results.get("organic", [])
+    links = [result.get("link") for result in organic_results if "link" in result]
+    return links
 
 def get_web_links(query):
     # Generate a grounded response for the given query
@@ -175,14 +182,16 @@ def generate_skill_resources(input_json):
         tavily_docs = tavily_search(tavily_query)
 
         # Generate DuckDuckGo links
-        duckduckgo_query = f"{skill} tutorials and guides"
+        duckduckgo_query = f"find me blogs on topic {skill}"
         #duckduckgo_links = duckduckgo_search(duckduckgo_query, max_results=5)
+        links=llm_serper(duckduckgo_query)
         vertexta_ai_search=get_web_links(duckduckgo_query)
 
         # Append results for the current skill
         result.append({
             "skill": skill,
-            "documents": tavily_docs
+            "documents": tavily_docs,
+            "blogs":links
         })
 
     return result
@@ -228,3 +237,6 @@ def generate_skill_resources(input_json):
 #     """
 #     playlists = generate_skill_resources(sample_json)
 #     print(json.dumps(playlists, indent=4))
+
+# response=llm_serper("Data Science")
+# print(response)

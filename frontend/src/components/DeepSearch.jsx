@@ -17,7 +17,6 @@ import {
   IoFileTrayFullOutline,
   IoStarOutline,
   IoTimeOutline,
-  IoArrowForwardOutline,
   IoAlertCircleOutline,
 } from "react-icons/io5";
 
@@ -59,26 +58,22 @@ const DeepSearch = () => {
 
         // Get assessment results from localStorage
         const assessmentResults = localStorage.getItem("skillAssessmentResults");
-        const parsedResults = assessmentResults
-          ? JSON.parse(assessmentResults)
-          : null;
+        const parsedResults = assessmentResults ? JSON.parse(assessmentResults) : null;
 
         if (!parsedResults) {
-          throw new Error(
-            "No assessment data found. Please complete an assessment first."
-          );
+          throw new Error("No assessment data found. Please complete an assessment first.");
         }
 
         setAssessmentData(parsedResults);
 
-        // IMPORTANT FIX: Properly structure the request body
+        // Structure request body
         const requestBody = { data: parsedResults };
 
         console.log("Sending request to DeepSearch API:", requestBody);
 
         // Call the DeepSearch API
         const response = await fetch(
-          "https://quasar-backend-30440798035.us-central1.run.app/api/deepresearch/recommendations",
+          "http://localhost:8000/api/deepresearch/recommendations",
           {
             method: "POST",
             headers: {
@@ -96,13 +91,13 @@ const DeepSearch = () => {
         const data = await response.json();
         console.log("DeepSearch API response:", data);
 
-        // Process the recommendations data including both documents and google_results
+        // Process recommendations
         if (data.recommendations && Array.isArray(data.recommendations)) {
           const processedResources = [];
           const defaultLevel = "intermediate";
 
           data.recommendations.forEach((rec) => {
-            // Process documents (old structure)
+            // Process documents
             if (rec.documents && Array.isArray(rec.documents)) {
               rec.documents.forEach((doc) => {
                 const resourceLevel =
@@ -122,20 +117,20 @@ const DeepSearch = () => {
               });
             }
 
-            // Process google_results (new structure)
-            if (rec.google_results && Array.isArray(rec.google_results)) {
-              rec.google_results.forEach((result) => {
+            // Process blogs (new structure)
+            if (rec.blogs && Array.isArray(rec.blogs)) {
+              rec.blogs.forEach((blogUrl) => {
                 const resourceLevel =
                   parsedResults && parsedResults.assessed_level
                     ? parsedResults.assessed_level
                     : defaultLevel;
                 processedResources.push({
-                  title: result.title || "Untitled Resource",
-                  description: result.snippet || "No description available",
-                  url: result.link,
-                  type: getResourceTypeFromUrl(result.link) || "article",
+                  title: blogUrl, // Optionally adjust title formatting here
+                  description: "Recommended blog resource",
+                  url: blogUrl,
+                  type: "blog",
                   difficulty: resourceLevel,
-                  rating: result.score ? Math.min(5, result.score * 5) : undefined,
+                  rating: undefined,
                   tags: [rec.skill].filter(Boolean),
                   skill_category: rec.skill,
                 });
@@ -145,7 +140,6 @@ const DeepSearch = () => {
 
           setResources(processedResources);
         } else {
-          // Handle case when no recommendations are available
           setResources([]);
         }
 
@@ -210,6 +204,8 @@ const DeepSearch = () => {
         return <IoFileTrayFullOutline {...iconProps} />;
       case "project":
         return <IoCodeOutline {...iconProps} />;
+      case "blog":
+        return <IoBookOutline {...iconProps} />;
       default:
         return <IoBookOutline {...iconProps} />;
     }
@@ -344,8 +340,7 @@ const DeepSearch = () => {
                       {assessmentData.score.percentage}%
                     </span>
                     <span className="text-gray-400 ml-2 mb-1">
-                      ({assessmentData.score.correct}/
-                      {assessmentData.score.total} correct)
+                      ({assessmentData.score.correct}/{assessmentData.score.total} correct)
                     </span>
                   </div>
                 </div>
@@ -509,8 +504,7 @@ const DeepSearch = () => {
             ) : (
               <div className="bg-gray-700/30 border border-gray-600/30 rounded-xl p-8 text-center">
                 <p className="text-gray-400">
-                  No custom resources found for your profile. Try retaking the
-                  assessment.
+                  No custom resources found for your profile. Try retaking the assessment.
                 </p>
               </div>
             )}
