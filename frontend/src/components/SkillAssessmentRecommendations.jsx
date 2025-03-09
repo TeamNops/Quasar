@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -29,15 +30,33 @@ import {
 // Utility functions
 const getVideoId = (url) => {
   if (!url || typeof url !== 'string') return null;
-  
+
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = url.match(regExp);
   return match && match[2].length === 11 ? match[2] : null;
 };
+const convertTimeToSeconds = (timeString) => {
+  if (!timeString) return 0;
 
+  let seconds = 0;
+  if (timeString.includes(':')) {
+    const parts = timeString.split(':');
+    if (parts.length === 3) {
+      // HH:MM:SS format
+      seconds = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
+    } else if (parts.length === 2) {
+      // MM:SS format
+      seconds = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+    }
+  } else {
+    seconds = parseInt(timeString);
+  }
+
+  return isNaN(seconds) ? 0 : seconds;
+};
 const normalizeYoutubeLink = (url) => {
   if (!url || typeof url !== 'string') return '';
-  
+
   const videoId = getVideoId(url);
   if (!videoId) return url;
   return `https://www.youtube.com/watch?v=${videoId}`;
@@ -59,7 +78,9 @@ const SkillAssessmentRecommendations = () => {
   const [processingVideo, setProcessingVideo] = useState(false);
   const [processedVideos, setProcessedVideos] = useState({});
   const questionInputRef = useRef(null);
-
+  // Add this new state to track the current video player
+  const [currentVideoPlayer, setCurrentVideoPlayer] = useState(null);
+  const [mainVideoPlayer, setMainVideoPlayer] = useState({});
   // States to cache comprehensive info per video and control dropdown visibility
   const [moreInfo, setMoreInfo] = useState({});
   const [moreInfoVisible, setMoreInfoVisible] = useState({});
@@ -139,12 +160,12 @@ const SkillAssessmentRecommendations = () => {
           ...skillPlaylist,
           playlist: skillPlaylist.playlist.map(item => ({
             ...item,
-            youtube_link: item.youtube_link && typeof item.youtube_link === 'string' 
-              ? item.youtube_link.trim() 
+            youtube_link: item.youtube_link && typeof item.youtube_link === 'string'
+              ? item.youtube_link.trim()
               : `https://www.youtube.com/results?search_query=${encodeURIComponent(item.concept + ' tutorial')}`
           }))
         }));
-        
+
         setPlaylists(processedData);
         setIsLoading(false);
       } catch (err) {
@@ -186,7 +207,7 @@ const SkillAssessmentRecommendations = () => {
       setQAError("Invalid video URL. Please try a different video.");
       return;
     }
-    
+
     const normalizedUrl = normalizeYoutubeLink(videoUrl);
     const videoId = getVideoId(normalizedUrl);
 
@@ -200,6 +221,8 @@ const SkillAssessmentRecommendations = () => {
     setQAError(null);
     // Reset chat history when starting a new QA session:
     setChatHistory([]);
+    // Reset the current video player reference
+    setCurrentVideoPlayer(null);
 
     if (!processedVideos[videoId]) {
       try {
@@ -220,7 +243,7 @@ const SkillAssessmentRecommendations = () => {
 
         if (!response.ok) {
           let errorMessage = "Failed to process video.";
-          
+
           try {
             const errorData = await response.json();
             if (errorData.detail) {
@@ -239,7 +262,7 @@ const SkillAssessmentRecommendations = () => {
               errorMessage = "Server error processing video. Please try again later.";
             }
           }
-          
+
           throw new Error(errorMessage);
         }
 
@@ -320,21 +343,21 @@ const SkillAssessmentRecommendations = () => {
         ...prev,
         [youtubeLink]: true
       }));
-      
+
       // Make sure the YouTube link is valid
       if (!youtubeLink || typeof youtubeLink !== 'string') {
         throw new Error("Invalid YouTube link");
       }
-      
+
       const videoId = getVideoId(youtubeLink);
       if (!videoId) {
         throw new Error("Could not extract video ID from URL");
       }
-      
+
       const normalizedUrl = `https://www.youtube.com/watch?v=${videoId}`;
-      
+
       console.log("Fetching comprehensive info for:", normalizedUrl);
-      
+
       const response = await fetch("http://localhost:8000/api/youtube-quiz/comprehensive", {
         method: "POST",
         headers: {
@@ -364,20 +387,20 @@ const SkillAssessmentRecommendations = () => {
               }
             ]
           };
-          
+
           setMoreInfo(prev => ({
             ...prev,
             [youtubeLink]: fallbackData
           }));
-          
+
           setMoreInfoVisible(prev => ({
             ...prev,
             [youtubeLink]: true
           }));
-          
+
           throw new Error("Could not fetch comprehensive information for this video");
         }
-        
+
         throw new Error("Failed to fetch additional video info");
       }
 
@@ -386,7 +409,7 @@ const SkillAssessmentRecommendations = () => {
         ...prev,
         [youtubeLink]: data
       }));
-      
+
       setMoreInfoVisible(prev => ({
         ...prev,
         [youtubeLink]: true
@@ -402,7 +425,7 @@ const SkillAssessmentRecommendations = () => {
           core_topics: []
         }
       }));
-      
+
       setMoreInfoVisible(prev => ({
         ...prev,
         [youtubeLink]: true
@@ -417,18 +440,37 @@ const SkillAssessmentRecommendations = () => {
 
   const formatTimestamp = (seconds) => {
     if (typeof seconds !== 'number') return "00:00";
-    
+
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
   };
 
-  const jumpToTimestamp = (seconds) => {
-    if (!activeQA?.videoId) return;
+  // Update this function to use the embedded player
+const jumpToTimestamp = (seconds) => {
+  if (!activeQA?.videoId) return;
+
+  // Convert HH:MM:SS format to seconds if needed
+  if (typeof seconds === 'string' && seconds.includes(':')) {
+    seconds = convertTimeToSeconds(seconds);
+  }
+
+  if (currentVideoPlayer && currentVideoPlayer.contentWindow) {
+    // Control embedded player
+    currentVideoPlayer.contentWindow.postMessage(
+      JSON.stringify({
+        event: 'command',
+        func: 'seekTo',
+        args: [Math.floor(seconds), true]
+      }),
+      '*'
+    );
+  } else {
+    // Fallback to new tab
     const url = `https://www.youtube.com/watch?v=${activeQA.videoId}&t=${Math.floor(seconds)}s`;
     window.open(url, "_blank");
-  };
-
+  }
+};
   if (isLoading) {
     return (
       <section className="relative min-h-screen flex items-center justify-center px-4 py-12 pt-28">
@@ -629,7 +671,7 @@ const SkillAssessmentRecommendations = () => {
                                         {moreInfo[item.youtube_link].error}
                                       </div>
                                     ) : null}
-                                    
+
                                     <h4 className="text-white font-semibold mb-2">Video Summary</h4>
                                     <p className="text-gray-300">{moreInfo[item.youtube_link].summary}</p>
 
@@ -640,9 +682,32 @@ const SkillAssessmentRecommendations = () => {
                                           <div key={idx} className="border border-gray-600 p-2 mt-2 rounded">
                                             <div className="flex justify-between flex-wrap">
                                               <span className="text-white font-medium">{topic.topic}</span>
-                                              <span className="text-gray-400">
-                                                {topic.start_time} - {topic.end_time || "End"}
-                                              </span>
+                                              <button
+                                                  onClick={() => {
+                                                    const videoId = getVideoId(item.youtube_link);
+                                                    if (videoId) {
+                                                      // First check if we're already in QA modal
+                                                      if (activeQA?.videoId === videoId) {
+                                                        // If so, use the embedded player
+                                                        jumpToTimestamp(topic.start_time);
+                                                      } else {
+                                                        // If not, open QA modal first, then jump to timestamp
+                                                        handleOpenQA(item.youtube_link, item.concept).then(() => {
+                                                          // We need to delay this a bit to let the player load
+                                                          setTimeout(() => {
+                                                            jumpToTimestamp(topic.start_time);
+                                                          }, 1500); // 1.5 second delay to ensure the player is loaded
+                                                        });
+                                                      }
+                                                    }
+                                                  }}
+                                                  className="text-gray-400 hover:text-blue-400 bg-gray-700/50 px-2 py-1 rounded"
+                                              >
+  <span className="flex items-center">
+    <IoTimeOutline className="mr-1"/>
+    {topic.start_time} - {topic.end_time || "End"}
+  </span>
+                                              </button>
                                             </div>
                                             <p className="text-gray-300">{topic.description}</p>
                                           </div>
@@ -653,12 +718,12 @@ const SkillAssessmentRecommendations = () => {
                                 )}
                               </>
                             ) : (
-                              <>
-                                <div className="p-4 text-center bg-gray-700/10">
-                                  <a
-                                    href={item.youtube_link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                <>
+                                  <div className="p-4 text-center bg-gray-700/10">
+                                    <a
+                                        href={item.youtube_link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
                                     className="inline-flex items-center text-blue-400 hover:text-blue-300 transition-colors"
                                   >
                                     <IoLogoYoutube className="mr-2" />
@@ -701,7 +766,7 @@ const SkillAssessmentRecommendations = () => {
                                         {moreInfo[item.youtube_link].error}
                                       </div>
                                     ) : null}
-                                    
+
                                     <h4 className="text-white font-semibold mb-2">Video Summary</h4>
                                     <p className="text-gray-300">{moreInfo[item.youtube_link].summary}</p>
 
@@ -777,6 +842,20 @@ const SkillAssessmentRecommendations = () => {
               </div>
 
               <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+                {activeQA && (
+  <div className="aspect-video w-full mb-4 bg-black">
+    <iframe
+      ref={(el) => setCurrentVideoPlayer(el)}
+      width="100%"
+      height="100%"
+      src={`https://www.youtube.com/embed/${activeQA.videoId}?enablejsapi=1`}
+      title={activeQA.videoTitle}
+      frameBorder="0"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowFullScreen
+    ></iframe>
+  </div>
+)}
                 {processingVideo && (
                   <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-4 flex items-center mb-4">
                     <div className="w-5 h-5 border-2 border-t-blue-500 border-blue-500/20 rounded-full animate-spin mr-3" />
