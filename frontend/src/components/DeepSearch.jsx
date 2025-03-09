@@ -58,9 +58,7 @@ const DeepSearch = () => {
         setIsLoading(true);
 
         // Get assessment results from localStorage
-        const assessmentResults = localStorage.getItem(
-          "skillAssessmentResults"
-        );
+        const assessmentResults = localStorage.getItem("skillAssessmentResults");
         const parsedResults = assessmentResults
           ? JSON.parse(assessmentResults)
           : null;
@@ -80,7 +78,7 @@ const DeepSearch = () => {
 
         // Call the DeepSearch API
         const response = await fetch(
-          "http://localhost:8000/api/deepresearch/recommendations",
+          "https://quasar-backend-30440798035.us-central1.run.app/api/deepresearch/recommendations",
           {
             method: "POST",
             headers: {
@@ -98,31 +96,46 @@ const DeepSearch = () => {
         const data = await response.json();
         console.log("DeepSearch API response:", data);
 
-        // Process the recommendations data
-        // Fix in the useEffect function where you process recommendations
-
-        // Process the recommendations data
+        // Process the recommendations data including both documents and google_results
         if (data.recommendations && Array.isArray(data.recommendations)) {
           const processedResources = [];
+          const defaultLevel = "intermediate";
 
-          // Flatten document structures from the recommendations
           data.recommendations.forEach((rec) => {
+            // Process documents (old structure)
             if (rec.documents && Array.isArray(rec.documents)) {
               rec.documents.forEach((doc) => {
-                // Fix: Add safety checks for assessment data and provide default values
-                const defaultLevel = "intermediate";
                 const resourceLevel =
                   parsedResults && parsedResults.assessed_level
                     ? parsedResults.assessed_level
                     : defaultLevel;
-
                 processedResources.push({
                   title: doc.title || "Untitled Resource",
                   description: doc.content || "No description available",
                   url: doc.url,
                   type: getResourceTypeFromUrl(doc.url) || "article",
-                  difficulty: resourceLevel, // <-- Fixed: Use local variable instead of assessmentData
+                  difficulty: resourceLevel,
                   rating: doc.score ? Math.min(5, doc.score * 5) : undefined,
+                  tags: [rec.skill].filter(Boolean),
+                  skill_category: rec.skill,
+                });
+              });
+            }
+
+            // Process google_results (new structure)
+            if (rec.google_results && Array.isArray(rec.google_results)) {
+              rec.google_results.forEach((result) => {
+                const resourceLevel =
+                  parsedResults && parsedResults.assessed_level
+                    ? parsedResults.assessed_level
+                    : defaultLevel;
+                processedResources.push({
+                  title: result.title || "Untitled Resource",
+                  description: result.snippet || "No description available",
+                  url: result.link,
+                  type: getResourceTypeFromUrl(result.link) || "article",
+                  difficulty: resourceLevel,
+                  rating: result.score ? Math.min(5, result.score * 5) : undefined,
                   tags: [rec.skill].filter(Boolean),
                   skill_category: rec.skill,
                 });

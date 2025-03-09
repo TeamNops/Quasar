@@ -5,7 +5,7 @@ const GoalSettingStep = ({ form, onSubmit, pageVariants }) => {
   const { register, handleSubmit, control, formState: { errors, isValid } } = form;
 
   const prioritySkillOptions = [
-    { id: 'programming', label: 'Programming' },
+    { id: 'deep_learning', label: 'Deep Learning' },
     { id: 'design', label: 'Design' },
     { id: 'business', label: 'Business' },
     { id: 'communication', label: 'Communication' },

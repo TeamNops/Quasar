@@ -1,21 +1,43 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import IconsCarousel from './IconsCarousel';
-import DeepSearch from './DeepSearch'; // Import the DeepSearch component
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import IconsCarousel from "./IconsCarousel";
+import DeepSearch from "./DeepSearch.jsx"; // Import the DeepSearch component
 
 // Import icons
-import { 
-  IoPlayCircleOutline, 
-  IoArrowForward, 
-  IoHourglassOutline, 
+import {
+  IoPlayCircleOutline,
+  IoArrowForward,
+  IoHourglassOutline,
   IoSchoolOutline,
   IoChevronDown,
   IoChevronUp,
   IoRocketOutline,
   IoLogoYoutube,
-  IoSearchOutline
-} from 'react-icons/io5';
+  IoSearchOutline,
+  IoSendOutline,
+  IoChatbubblesOutline,
+  IoCloseOutline,
+  IoTimeOutline,
+  IoInformationCircleOutline,
+  IoHelpCircleOutline,
+  IoCheckmarkCircleOutline,
+  IoRefreshOutline,
+  IoReaderOutline,
+} from "react-icons/io5";
+
+// Utility functions
+const getVideoId = (url) => {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  return match && match[2].length === 11 ? match[2] : null;
+};
+
+const normalizeYoutubeLink = (url) => {
+  const videoId = getVideoId(url);
+  if (!videoId) return url;
+  return `https://www.youtube.com/watch?v=${videoId}`;
+};
 
 const SkillAssessmentRecommendations = () => {
   const navigate = useNavigate();
@@ -23,112 +45,240 @@ const SkillAssessmentRecommendations = () => {
   const [error, setError] = useState(null);
   const [playlists, setPlaylists] = useState([]);
   const [expandedSkill, setExpandedSkill] = useState(null);
-  const [viewMode, setViewMode] = useState('videos'); // 'videos' or 'resources'
+  const [viewMode, setViewMode] = useState("videos"); // 'videos' or 'resources'
+  const [activeQA, setActiveQA] = useState(null); // { videoId, videoTitle, videoUrl }
+  const [question, setQuestion] = useState("");
+  const [qaIsLoading, setQAIsLoading] = useState(false);
+  const [qaError, setQAError] = useState(null);
+  // New state for keeping the conversation history:
+  const [chatHistory, setChatHistory] = useState([]);
+  const [processingVideo, setProcessingVideo] = useState(false);
+  const [processedVideos, setProcessedVideos] = useState({});
+  const questionInputRef = useRef(null);
 
   // Animation variants
   const containerVariants = {
     initial: { opacity: 0, y: 20 },
-    animate: { 
-      opacity: 1, 
+    animate: {
+      opacity: 1,
       y: 0,
-      transition: { 
+      transition: {
         duration: 0.5,
-        staggerChildren: 0.1
-      }
-    }
+        staggerChildren: 0.1,
+      },
+    },
   };
 
   const itemVariants = {
     initial: { opacity: 0, y: 10 },
     animate: { opacity: 1, y: 0 },
-    hover: { scale: 1.02 }
+    hover: { scale: 1.02 },
+  };
+
+  const qaModalVariants = {
+    initial: { opacity: 0, scale: 0.95 },
+    animate: {
+      opacity: 1,
+      scale: 1,
+      transition: { duration: 0.3 },
+    },
+    exit: {
+      opacity: 0,
+      scale: 0.95,
+      transition: { duration: 0.2 },
+    },
   };
 
   useEffect(() => {
     const fetchYouTubeRecommendations = async () => {
       try {
         // Check if assessment has been completed
-        const assessmentComplete = localStorage.getItem('skillAssessmentComplete');
-        
-        if (assessmentComplete !== 'true') {
-          navigate('/assessment');
+        const assessmentComplete = localStorage.getItem("skillAssessmentComplete");
+
+        if (assessmentComplete !== "true") {
+          navigate("/assessment");
           return;
         }
-  
+
         // Get assessment results from localStorage or let backend fetch them
-        const assessmentResults = JSON.parse(localStorage.getItem('skillAssessmentResults') || '{}');
-        
+        const assessmentResults = JSON.parse(localStorage.getItem("skillAssessmentResults") || "{}");
         let requestBody = {};
         let hasResults = false;
-        
-        // If we have results in localStorage, use them
+
         if (assessmentResults && assessmentResults.skill_gaps) {
           requestBody = assessmentResults;
           hasResults = true;
         }
-        
-        // Fetch YouTube recommendations from backend
-        const response = await fetch('http://localhost:8000/api/youtube/recommendations', {
-          method: 'POST',
+
+        const response = await fetch("http://localhost:8000/api/youtube/recommendations", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
-          body: hasResults ? JSON.stringify(requestBody) : JSON.stringify({}) // Send empty object if no results
+          body: hasResults ? JSON.stringify(requestBody) : JSON.stringify({}),
         });
-  
+
         if (!response.ok) {
-          throw new Error('Failed to fetch recommendations');
+          throw new Error("Failed to fetch recommendations");
         }
-  
+
         const data = await response.json();
-        
-        // Set playlist data to state
         setPlaylists(data);
         setIsLoading(false);
       } catch (err) {
-        console.error('Error fetching YouTube recommendations:', err);
+        console.error("Error fetching YouTube recommendations:", err);
         setError(err.message);
         setIsLoading(false);
       }
     };
-    
-    // Run this effect only once on mount
-    fetchYouTubeRecommendations();
-  }, []); // <-- empty dependency array prevents re-calling
 
-  // Toggle expanded skill
+    fetchYouTubeRecommendations();
+  }, [navigate]);
+
+  useEffect(() => {
+    if (activeQA && questionInputRef.current) {
+      setTimeout(() => {
+        questionInputRef.current.focus();
+      }, 300);
+    }
+  }, [activeQA]);
+
   const toggleSkill = (skillIndex) => {
     setExpandedSkill(expandedSkill === skillIndex ? null : skillIndex);
   };
 
-  const normalizeYoutubeLink = (link) => {
-    if (link.startsWith('[') && link.endsWith(']')) {
-      const cleaned = link.slice(1, -1).replace(/['"]/g, "");
-      return cleaned.split(',')[0].trim();
-    }
-    return link;
-  };
-
-  // Updated getVideoId function that normalizes the URL first
-  const getVideoId = (url) => {
-    const normalizedUrl = normalizeYoutubeLink(url);
-    const regex = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-    const match = normalizedUrl.match(regex);
-    return match ? match[1] : null;
-  };
-
-  // Handle continue to dashboard
   const handleContinue = () => {
-    navigate('/dashboard');
+    navigate("/dashboard");
   };
 
-  // Handle "Give Test" button click
   const handleGiveTest = (youtubeLink) => {
-    navigate('/youtube-assesment', { state: { youtubeUrl: youtubeLink } });
+    navigate("/youtube-assesment", { state: { youtubeUrl: youtubeLink } });
   };
 
-  // Loading state
+  const handleOpenQA = async (videoUrl, videoTitle) => {
+    const normalizedUrl = normalizeYoutubeLink(videoUrl);
+    const videoId = getVideoId(normalizedUrl);
+
+    if (!videoId) {
+      setQAError("Invalid YouTube URL. Please provide a valid video link.");
+      return;
+    }
+
+    setActiveQA({ videoId, videoTitle, videoUrl: normalizedUrl });
+    setQuestion("");
+    setQAError(null);
+    // Reset chat history when starting a new QA session:
+    setChatHistory([]);
+
+    if (!processedVideos[videoId]) {
+      try {
+        setProcessingVideo(true);
+
+        const response = await fetch("http://localhost:8000/api/youtube-qa/process", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({
+            video_url: normalizedUrl,
+            languages: ["en"],
+            force_refresh: false,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error("Server response:", response.status, errorData);
+
+          if (response.status === 422) {
+            throw new Error("Invalid video URL format. Please use a standard YouTube link.");
+          } else if (response.status === 500) {
+            const errorDetail = errorData.detail || "";
+            if (errorDetail.includes("No transcripts available")) {
+              throw new Error("This video doesn't have available transcripts.");
+            } else {
+              throw new Error("Server error processing video. Please try again later.");
+            }
+          } else {
+            throw new Error(`Failed to process video (${response.status})`);
+          }
+        }
+
+        await response.json();
+        setProcessedVideos((prev) => ({ ...prev, [videoId]: true }));
+      } catch (err) {
+        console.error("Error processing video:", err);
+        setQAError(err.message || "Failed to prepare video for questions. Please try again.");
+      } finally {
+        setProcessingVideo(false);
+      }
+    }
+  };
+
+  const handleCloseQA = () => {
+    setActiveQA(null);
+    setQuestion("");
+    setQAError(null);
+    setChatHistory([]);
+  };
+
+  const handleAskQuestion = async (e) => {
+    e.preventDefault();
+
+    if (!question.trim() || !activeQA?.videoUrl) return;
+
+    try {
+      setQAIsLoading(true);
+      setQAError(null);
+
+      const response = await fetch("http://localhost:8000/api/youtube-qa/ask", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({
+          video_url: activeQA.videoUrl,
+          question: question,
+          languages: ["en"],
+          top_k: 3,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to get answer (${response.status})`);
+      }
+
+      const result = await response.json();
+
+      // Append this Q&A pair to the chat history
+      setChatHistory((prevHistory) => [
+        ...prevHistory,
+        { question: question, answer: result },
+      ]);
+      setQuestion("");
+    } catch (err) {
+      console.error("Error asking question:", err);
+      setQAError(err.message || "Failed to get answer. Please try again.");
+    } finally {
+      setQAIsLoading(false);
+    }
+  };
+
+  const formatTimestamp = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+  };
+
+  const jumpToTimestamp = (seconds) => {
+    if (!activeQA?.videoId) return;
+    const url = `https://www.youtube.com/watch?v=${activeQA.videoId}&t=${Math.floor(seconds)}s`;
+    window.open(url, "_blank");
+  };
+
   if (isLoading) {
     return (
       <section className="relative min-h-screen flex items-center justify-center px-4 py-12 pt-28">
@@ -139,15 +289,18 @@ const SkillAssessmentRecommendations = () => {
         <div className="w-full max-w-3xl relative z-10 bg-gray-800/60 backdrop-blur-lg border border-gray-700/50 rounded-2xl p-8 shadow-xl">
           <div className="flex flex-col items-center justify-center">
             <IoHourglassOutline className="animate-pulse text-blue-500 text-5xl mb-4" />
-            <h3 className="text-xl font-medium text-white mb-2">Generating personalized learning path...</h3>
-            <p className="text-gray-300 text-center">We're curating videos based on your assessment results.</p>
+            <h3 className="text-xl font-medium text-white mb-2">
+              Generating personalized learning path...
+            </h3>
+            <p className="text-gray-300 text-center">
+              We're curating videos based on your assessment results.
+            </p>
           </div>
         </div>
       </section>
     );
   }
 
-  // Error state
   if (error) {
     return (
       <section className="relative min-h-screen flex items-center justify-center px-4 py-12 pt-28">
@@ -160,8 +313,8 @@ const SkillAssessmentRecommendations = () => {
             <div className="text-red-500 text-5xl mb-4">⚠️</div>
             <h3 className="text-xl font-medium text-white mb-2">Something went wrong</h3>
             <p className="text-gray-300 text-center mb-6">{error}</p>
-            <button 
-              onClick={() => navigate('/dashboard')}
+            <button
+              onClick={() => navigate("/dashboard")}
               className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
             >
               Go to Dashboard
@@ -172,46 +325,39 @@ const SkillAssessmentRecommendations = () => {
     );
   }
 
-  // If we're in resources mode, render the DeepSearch component directly
-  if (viewMode === 'resources') {
+  if (viewMode === "resources") {
     return (
       <>
         <div className="fixed top-0 left-0 right-0 z-20 bg-gray-900/80 backdrop-blur-sm p-4 flex justify-center pt-28 pb-6">
           <div className="bg-gray-800/80 rounded-lg p-1 flex">
-            <button 
+            <button
               className="px-4 py-2 rounded-md flex items-center text-gray-300 hover:text-white"
-              onClick={() => setViewMode('videos')}
+              onClick={() => setViewMode("videos")}
             >
               <IoLogoYoutube className="mr-2" />
               Video Tutorials
             </button>
-            <button 
+            <button
               className="px-4 py-2 rounded-md flex items-center bg-purple-600 text-white"
-              onClick={() => setViewMode('resources')}
+              onClick={() => setViewMode("resources")}
             >
               <IoSearchOutline className="mr-2" />
               Deep Resources
             </button>
           </div>
         </div>
-
         <DeepSearch />
       </>
     );
   }
 
   return (
-    <section className="relative min-h-screen px-4 py-12 pt-28">
+    <section className="relative -h-screen px-4 py-12 pt-28">
       <div className="absolute inset-0 overflow-hidden">
         <IconsCarousel backgroundColor="rgba(17, 24, 39, 0.8)" iconColor="gray-500/30" />
         <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-gray-800/90" />
       </div>
-      <motion.div 
-        className="w-full max-w-5xl mx-auto relative z-10"
-        variants={containerVariants}
-        initial="initial"
-        animate="animate"
-      >
+      <motion.div className="w-full max-w-5xl mx-auto relative z-10" variants={containerVariants} initial="initial" animate="animate">
         <div className="bg-gray-800/60 backdrop-blur-lg border border-gray-700/50 rounded-2xl p-8 shadow-xl">
           <div className="text-center mb-8">
             <IoSchoolOutline className="mx-auto text-blue-500 text-5xl mb-4" />
@@ -224,16 +370,16 @@ const SkillAssessmentRecommendations = () => {
           {/* Resource Type Toggle */}
           <div className="flex justify-center mb-8">
             <div className="bg-gray-700/50 rounded-lg p-1 flex">
-              <button 
+              <button
                 className="px-4 py-2 rounded-md flex items-center bg-blue-600 text-white"
-                onClick={() => setViewMode('videos')}
+                onClick={() => setViewMode("videos")}
               >
                 <IoLogoYoutube className="mr-2" />
                 Video Tutorials
               </button>
-              <button 
+              <button
                 className="px-4 py-2 rounded-md flex items-center text-gray-300 hover:text-white"
-                onClick={() => setViewMode('resources')}
+                onClick={() => setViewMode("resources")}
               >
                 <IoSearchOutline className="mr-2" />
                 Deep Resources
@@ -245,13 +391,13 @@ const SkillAssessmentRecommendations = () => {
           <div className="space-y-6 mb-8">
             {playlists.length > 0 ? (
               playlists.map((skillPlaylist, skillIndex) => (
-                <motion.div 
+                <motion.div
                   key={skillIndex}
                   className="border border-gray-700 rounded-xl overflow-hidden"
                   variants={itemVariants}
                   whileHover={{ scale: 1.01 }}
                 >
-                  <div 
+                  <div
                     className="bg-gray-700/50 p-4 flex justify-between items-center cursor-pointer"
                     onClick={() => toggleSkill(skillIndex)}
                   >
@@ -273,7 +419,7 @@ const SkillAssessmentRecommendations = () => {
                       {skillPlaylist.playlist.map((item, index) => {
                         const videoId = getVideoId(item.youtube_link);
                         return (
-                          <motion.div 
+                          <motion.div
                             key={index}
                             className="border border-gray-600/50 rounded-lg overflow-hidden"
                             initial={{ opacity: 0, y: 10 }}
@@ -286,32 +432,39 @@ const SkillAssessmentRecommendations = () => {
                             {videoId ? (
                               <>
                                 <div className="aspect-video w-full">
-                                  <iframe 
-                                    width="100%" 
-                                    height="100%" 
-                                    src={`https://www.youtube.com/embed/${videoId}`} 
+                                  <iframe
+                                    width="100%"
+                                    height="100%"
+                                    src={`https://www.youtube.com/embed/${videoId}`}
                                     title={item.concept}
-                                    frameBorder="0" 
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                    frameBorder="0"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
                                     loading="lazy"
                                   ></iframe>
                                 </div>
-                                <div className="flex justify-center p-2">
+                                <div className="flex justify-center p-2 space-x-2">
                                   <button
                                     onClick={() => handleGiveTest(item.youtube_link)}
                                     className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
                                   >
                                     Give Test
                                   </button>
+                                  <button
+                                    onClick={() => handleOpenQA(item.youtube_link, item.concept)}
+                                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors flex items-center"
+                                  >
+                                    <IoChatbubblesOutline className="mr-2" />
+                                    Ask AI
+                                  </button>
                                 </div>
                               </>
                             ) : (
                               <>
                                 <div className="p-4 text-center bg-gray-700/10">
-                                  <a 
-                                    href={item.youtube_link} 
-                                    target="_blank" 
+                                  <a
+                                    href={item.youtube_link}
+                                    target="_blank"
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center text-blue-400 hover:text-blue-300 transition-colors"
                                   >
@@ -319,12 +472,19 @@ const SkillAssessmentRecommendations = () => {
                                     Watch on YouTube
                                   </a>
                                 </div>
-                                <div className="flex justify-center p-2">
+                                <div className="flex justify-center p-2 space-x-2">
                                   <button
                                     onClick={() => handleGiveTest(item.youtube_link)}
                                     className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
                                   >
                                     Give Test
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenQA(item.youtube_link, item.concept)}
+                                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors flex items-center"
+                                  >
+                                    <IoChatbubblesOutline className="mr-2" />
+                                    Ask AI
                                   </button>
                                 </div>
                               </>
@@ -338,13 +498,15 @@ const SkillAssessmentRecommendations = () => {
               ))
             ) : (
               <div className="text-center p-8 border border-dashed border-gray-600 rounded-xl">
-                <p className="text-gray-400">No learning recommendations available. Please retake the assessment.</p>
+                <p className="text-gray-400">
+                  No learning recommendations available. Please retake the assessment.
+                </p>
               </div>
             )}
           </div>
-          
+
           <div className="flex justify-center">
-            <button 
+            <button
               className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center"
               onClick={handleContinue}
             >
@@ -354,6 +516,157 @@ const SkillAssessmentRecommendations = () => {
           </div>
         </div>
       </motion.div>
+
+      {/* YouTube Q&A Modal */}
+      <AnimatePresence>
+        {activeQA && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-10 overflow-y-auto">
+            {/* Overlay without onClick to prevent closing modal on background click */}
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+            <motion.div
+              className="w-full max-w-3xl bg-gray-800 border border-gray-700 rounded-xl shadow-2xl relative z-10 my-0"
+              variants={qaModalVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center sticky top-0 z-10">
+                <h3 className="text-lg font-medium text-white flex items-center">
+                  <IoHelpCircleOutline className="text-purple-400 mr-2" />
+                  Ask About: {activeQA.videoTitle}
+                </h3>
+                <button onClick={handleCloseQA} className="text-gray-400 hover:text-white transition-colors">
+                  <IoCloseOutline className="text-2xl" />
+                </button>
+              </div>
+
+              <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+                {/* Video Processing Indicator */}
+                {processingVideo && (
+                  <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-4 flex items-center mb-4">
+                    <div className="w-5 h-5 border-2 border-t-blue-500 border-blue-500/20 rounded-full animate-spin mr-3" />
+                    <p className="text-blue-300">
+                      Preparing video for questions... This may take a minute.
+                    </p>
+                  </div>
+                )}
+                {/* Error Display */}
+                {qaError && (
+                  <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-4 mb-4">
+                    <p className="text-red-300">{qaError}</p>
+                  </div>
+                )}
+                {/* Question Form */}
+                <form onSubmit={handleAskQuestion} className="mb-6">
+                  <div className="relative">
+                    <input
+                      ref={questionInputRef}
+                      type="text"
+                      value={question}
+                      onChange={(e) => setQuestion(e.target.value)}
+                      placeholder="Ask a question about this video..."
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg py-3 pl-4 pr-12 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                      disabled={qaIsLoading || processingVideo}
+                    />
+                    <button
+                      type="submit"
+                      className={`absolute right-2 top-1/2 transform -translate-y-1/2 text-lg p-1 rounded-full ${
+                        qaIsLoading || processingVideo || !question.trim()
+                          ? "text-gray-500 cursor-not-allowed"
+                          : "text-purple-500 hover:bg-purple-500/20"
+                      }`}
+                      disabled={qaIsLoading || processingVideo || !question.trim()}
+                    >
+                      {qaIsLoading ? (
+                        <div className="w-5 h-5 border-2 border-t-purple-500 border-purple-500/20 rounded-full animate-spin" />
+                      ) : (
+                        <IoSendOutline />
+                      )}
+                    </button>
+                  </div>
+                </form>
+                {/* Chat History Display */}
+                <div className="p-4">
+                  {chatHistory.length > 0 ? (
+                    chatHistory.map((chat, idx) => (
+                      <div key={idx} className="mb-4">
+                        <div className="text-purple-300">
+                          <strong>Q:</strong> {chat.question}
+                        </div>
+                        <div className="text-gray-200 whitespace-pre-line">
+                          <strong>A:</strong> {chat.answer.answer}
+                        </div>
+                        {chat.answer.sources && chat.answer.sources.length > 0 && (
+                          <div className="mt-2 border-t border-gray-600 pt-2">
+                            <h4 className="text-gray-300 text-sm font-medium flex items-center">
+                              <IoInformationCircleOutline className="mr-1 text-blue-400" />
+                              Relevant parts of the video:
+                            </h4>
+                            <div className="space-y-2">
+                              {chat.answer.sources.map((source, idx2) => (
+                                <div
+                                  key={idx2}
+                                  className="bg-gray-800 p-2 rounded-lg border border-gray-600 text-sm hover:border-gray-500 transition-colors"
+                                >
+                                  <div className="flex flex-wrap justify-between items-center mb-1">
+                                    <button
+                                      onClick={() => jumpToTimestamp(source.start_seconds)}
+                                      className="flex items-center text-purple-400 hover:text-purple-300 bg-purple-900/20 px-2 py-1 rounded-md transition-colors"
+                                    >
+                                      <IoTimeOutline className="mr-1 text-lg" />
+                                      {formatTimestamp(source.start_seconds || 0)}
+                                      {source.end_seconds ? ` - ${formatTimestamp(source.end_seconds)}` : ""}
+                                    </button>
+                                    <span className="text-gray-400 text-xs bg-gray-700/50 px-2 py-1 rounded-md mt-1 sm:mt-0">
+                                      {source.score && `Relevance: ${Math.round(source.score * 100)}%`}
+                                    </span>
+                                  </div>
+                                  {source.text ? (
+                                    <p className="text-gray-300">{source.text}</p>
+                                  ) : (
+                                    <p className="text-gray-400 italic text-xs flex items-center">
+                                      <IoHelpCircleOutline className="mr-1 text-purple-400" />
+                                      Jump to this section to see relevant content
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8">
+                      <IoReaderOutline className="mx-auto text-4xl text-gray-500 mb-3" />
+                      <p className="text-gray-400">
+                        Ask a question about the video content and AI will find relevant answers with timestamps.
+                      </p>
+                      <div className="mt-4 flex flex-col gap-2 text-left max-w-md mx-auto text-sm text-gray-400">
+                        <p>Example questions you can ask:</p>
+                        <button
+                          onClick={() => setQuestion("What are the main concepts covered in this video?")}
+                          className="text-left p-2 bg-gray-700/50 hover:bg-gray-700 rounded-lg border border-gray-600"
+                        >
+                          What are the main concepts covered in this video?
+                        </button>
+                        <button
+                          onClick={() => setQuestion("Can you explain how [topic] works based on this video?")}
+                          className="text-left p-2 bg-gray-700/50 hover:bg-gray-700 rounded-lg border border-gray-600"
+                        >
+                          Can you explain how [topic] works based on this video?
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </section>
   );
 };
