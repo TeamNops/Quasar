@@ -57,11 +57,17 @@ const DeepSearch = () => {
         setIsLoading(true);
 
         // Get assessment results from localStorage
-        const assessmentResults = localStorage.getItem("skillAssessmentResults");
-        const parsedResults = assessmentResults ? JSON.parse(assessmentResults) : null;
+        const assessmentResults = localStorage.getItem(
+          "skillAssessmentResults"
+        );
+        const parsedResults = assessmentResults
+          ? JSON.parse(assessmentResults)
+          : null;
 
         if (!parsedResults) {
-          throw new Error("No assessment data found. Please complete an assessment first.");
+          throw new Error(
+            "No assessment data found. Please complete an assessment first."
+          );
         }
 
         setAssessmentData(parsedResults);
@@ -340,7 +346,8 @@ const DeepSearch = () => {
                       {assessmentData.score.percentage}%
                     </span>
                     <span className="text-gray-400 ml-2 mb-1">
-                      ({assessmentData.score.correct}/{assessmentData.score.total} correct)
+                      ({assessmentData.score.correct}/
+                      {assessmentData.score.total} correct)
                     </span>
                   </div>
                 </div>
@@ -504,7 +511,8 @@ const DeepSearch = () => {
             ) : (
               <div className="bg-gray-700/30 border border-gray-600/30 rounded-xl p-8 text-center">
                 <p className="text-gray-400">
-                  No custom resources found for your profile. Try retaking the assessment.
+                  No custom resources found for your profile. Try retaking the
+                  assessment.
                 </p>
               </div>
             )}

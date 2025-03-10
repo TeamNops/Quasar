@@ -1,6 +1,10 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { containerVariants, itemVariants, listItemVariants } from "../animations/homeAnimations";
+import {
+  containerVariants,
+  itemVariants,
+  listItemVariants,
+} from "../animations/homeAnimations";
 import { Link as RouterLink } from "react-router-dom";
 
 const HeroContent = () => {
@@ -37,8 +41,8 @@ const HeroContent = () => {
             className="text-xl md:text-2xl opacity-80"
             variants={itemVariants}
           >
-            Personalized learning journeys based on your goals, current
-            skills, and career aspirations.
+            Personalized learning journeys based on your goals, current skills,
+            and career aspirations.
           </motion.p>
 
           <motion.ul className="space-y-2 text-lg" variants={itemVariants}>
@@ -53,8 +57,7 @@ const HeroContent = () => {
               className="flex items-center"
               variants={listItemVariants}
             >
-              <span className="mr-2">✓</span> Access curated learning
-              resources
+              <span className="mr-2">✓</span> Access curated learning resources
             </motion.li>
             <motion.li
               className="flex items-center"
@@ -65,16 +68,16 @@ const HeroContent = () => {
             </motion.li>
           </motion.ul>
 
-         <motion.div className="pt-4" variants={itemVariants}>
-         <RouterLink to="/register">
-            <motion.button
-              className="bg-primary hover:bg-primary-dark text-white font-bold py-3 px-8 rounded-lg cursor-pointer border-2"
-              whileHover={{ color: "#000", backgroundColor: "#fff" }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ duration: 0.1 }}
-            >
-              Start Your Journey
-            </motion.button>
+          <motion.div className="pt-4" variants={itemVariants}>
+            <RouterLink to="/register">
+              <motion.button
+                className="bg-primary hover:bg-primary-dark text-white font-bold py-3 px-8 rounded-lg cursor-pointer border-2"
+                whileHover={{ color: "#000", backgroundColor: "#fff" }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ duration: 0.1 }}
+              >
+                Start Your Journey
+              </motion.button>
             </RouterLink>
           </motion.div>
         </motion.div>

@@ -1,14 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line
-} from 'recharts';
-import { 
-  IoBarChartOutline, 
-  IoStatsChartOutline, 
-  IoCalendarOutline, 
-  IoBookOutline 
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+} from "recharts";
+import {
+  IoBarChartOutline,
+  IoStatsChartOutline,
+  IoCalendarOutline,
+  IoBookOutline,
 } from "react-icons/io5";
 import IconsCarousel from "./IconsCarousel";
 
@@ -20,27 +31,30 @@ const OverallStatistics = () => {
     skillGapFrequency: [],
     averageScores: [],
     quizCountByMonth: [],
-    topRecommendations: []
+    topRecommendations: [],
   });
 
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
 
   useEffect(() => {
     const fetchStatistics = async () => {
       try {
         setLoading(true);
         // Assuming you have an endpoint for overall statistics
-        const { data } = await axios.get('http://localhost:8000/api/quiz/statistics', {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
+        const { data } = await axios.get(
+          "http://localhost:8000/api/quiz/statistics",
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
           }
-        });
-        
+        );
+
         setStats(data);
         setLoading(false);
       } catch (err) {
-        console.error('Error fetching statistics:', err);
-        setError('Failed to load statistics. Please try again later.');
+        console.error("Error fetching statistics:", err);
+        setError("Failed to load statistics. Please try again later.");
         setLoading(false);
       }
     };
@@ -87,7 +101,7 @@ const OverallStatistics = () => {
             <IoStatsChartOutline className="mr-3 text-blue-400" />
             Quiz Assessment Analytics Dashboard
           </h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
             {/* User Skill Level Distribution */}
             <div className="bg-gray-700/50 rounded-xl p-6 shadow border border-gray-600/30">
@@ -107,19 +121,30 @@ const OverallStatistics = () => {
                       fill="#8884d8"
                       dataKey="value"
                       nameKey="name"
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      label={({ name, percent }) =>
+                        `${name}: ${(percent * 100).toFixed(0)}%`
+                      }
                     >
                       {stats.levelDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={COLORS[index % COLORS.length]}
+                        />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: 'rgba(17, 24, 39, 0.9)', borderColor: '#374151', color: '#fff' }} />
-                    <Legend wrapperStyle={{ color: '#e5e7eb' }} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "rgba(17, 24, 39, 0.9)",
+                        borderColor: "#374151",
+                        color: "#fff",
+                      }}
+                    />
+                    <Legend wrapperStyle={{ color: "#e5e7eb" }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
             </div>
-            
+
             {/* Common Skill Gaps */}
             <div className="bg-gray-700/50 rounded-xl p-6 shadow border border-gray-600/30">
               <h3 className="text-lg font-semibold mb-4 text-white flex items-center">
@@ -130,16 +155,26 @@ const OverallStatistics = () => {
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={stats.skillGapFrequency}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="name" tick={{ fill: '#9ca3af' }} />
-                    <YAxis tick={{ fill: '#9ca3af' }} />
-                    <Tooltip contentStyle={{ backgroundColor: 'rgba(17, 24, 39, 0.9)', borderColor: '#374151', color: '#fff' }} />
-                    <Bar dataKey="frequency" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <XAxis dataKey="name" tick={{ fill: "#9ca3af" }} />
+                    <YAxis tick={{ fill: "#9ca3af" }} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "rgba(17, 24, 39, 0.9)",
+                        borderColor: "#374151",
+                        color: "#fff",
+                      }}
+                    />
+                    <Bar
+                      dataKey="frequency"
+                      fill="#10b981"
+                      radius={[4, 4, 0, 0]}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 gap-8 mb-8">
             {/* Average Scores Over Time */}
             <div className="bg-gray-700/50 rounded-xl p-6 shadow border border-gray-600/30">
@@ -151,23 +186,29 @@ const OverallStatistics = () => {
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={stats.averageScores}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="date" tick={{ fill: '#9ca3af' }} />
-                    <YAxis domain={[0, 100]} tick={{ fill: '#9ca3af' }} />
-                    <Tooltip contentStyle={{ backgroundColor: 'rgba(17, 24, 39, 0.9)', borderColor: '#374151', color: '#fff' }} />
-                    <Legend wrapperStyle={{ color: '#e5e7eb' }} />
-                    <Line 
-                      type="monotone" 
-                      dataKey="average" 
-                      stroke="#8b5cf6" 
-                      strokeWidth={2} 
-                      activeDot={{ r: 8, fill: '#8b5cf6', stroke: '#fff' }} 
+                    <XAxis dataKey="date" tick={{ fill: "#9ca3af" }} />
+                    <YAxis domain={[0, 100]} tick={{ fill: "#9ca3af" }} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "rgba(17, 24, 39, 0.9)",
+                        borderColor: "#374151",
+                        color: "#fff",
+                      }}
+                    />
+                    <Legend wrapperStyle={{ color: "#e5e7eb" }} />
+                    <Line
+                      type="monotone"
+                      dataKey="average"
+                      stroke="#8b5cf6"
+                      strokeWidth={2}
+                      activeDot={{ r: 8, fill: "#8b5cf6", stroke: "#fff" }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Quiz Count by Month */}
             <div className="bg-gray-700/50 rounded-xl p-6 shadow border border-gray-600/30">
@@ -179,15 +220,21 @@ const OverallStatistics = () => {
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={stats.quizCountByMonth}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="month" tick={{ fill: '#9ca3af' }} />
-                    <YAxis tick={{ fill: '#9ca3af' }} />
-                    <Tooltip contentStyle={{ backgroundColor: 'rgba(17, 24, 39, 0.9)', borderColor: '#374151', color: '#fff' }} />
+                    <XAxis dataKey="month" tick={{ fill: "#9ca3af" }} />
+                    <YAxis tick={{ fill: "#9ca3af" }} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "rgba(17, 24, 39, 0.9)",
+                        borderColor: "#374151",
+                        color: "#fff",
+                      }}
+                    />
                     <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
-            
+
             {/* Top Recommendations */}
             <div className="bg-gray-700/50 rounded-xl p-6 shadow border border-gray-600/30">
               <h3 className="text-lg font-semibold mb-4 text-white flex items-center">
@@ -199,16 +246,29 @@ const OverallStatistics = () => {
                   <table className="min-w-full divide-y divide-gray-700">
                     <thead className="bg-gray-800">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Recommendation</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Type</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Frequency</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                          Recommendation
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                          Type
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                          Frequency
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-gray-800/50 divide-y divide-gray-700">
                       {stats.topRecommendations.map((rec, idx) => (
-                        <tr key={idx} className="hover:bg-gray-700/50 transition-colors">
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-200">{rec.title}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-300 capitalize">{rec.type}</td>
+                        <tr
+                          key={idx}
+                          className="hover:bg-gray-700/50 transition-colors"
+                        >
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-200">
+                            {rec.title}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-300 capitalize">
+                            {rec.type}
+                          </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span className="px-2 py-1 inline-flex text-xs leading-5 font-medium bg-blue-900/40 text-blue-300 rounded-full">
                               {rec.count}

@@ -27,8 +27,10 @@ const ProtectedRoute = ({ children }) => {
 // Route that checks for user progress
 const UserProgressRoute = ({ children }) => {
   const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
-  const onboardingComplete = localStorage.getItem("onboardingComplete") === "true";
-  const assessmentComplete = localStorage.getItem("skillAssessmentComplete") === "true";
+  const onboardingComplete =
+    localStorage.getItem("onboardingComplete") === "true";
+  const assessmentComplete =
+    localStorage.getItem("skillAssessmentComplete") === "true";
   const reassessmentInfo = localStorage.getItem("reassessmentInfo");
 
   if (!isLoggedIn) {
@@ -110,12 +112,7 @@ const App = () => {
                 </UserProgressRoute>
               }
             />
-            <Route
-              path="/overall-statistics"
-              element={
-                  <OverallStatistics />
-              }
-            />
+            <Route path="/overall-statistics" element={<OverallStatistics />} />
           </Routes>
         </BrowserRouter>
       </BackgroundProvider>
